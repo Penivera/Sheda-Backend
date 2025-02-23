@@ -18,27 +18,25 @@ from app.schemas.user_schema import BaseUserSchema,BuyerCreate,SellerCreate
 from app.utils.email import create_set_send_otp,verify_otp,resend_otp
 from app.utils.enums import AccountTypeEnum
 #NOTE - Create Buyer
-async def create_buyer(request:BuyerCreate,db:AsyncSession):
+async def create_buyer(new_user:Buyer,db:AsyncSession):
     try:
-        new_user = Buyer(**request.model_dump())
         db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
-        return new_user
-        logger.info(f'User {request.email} created')
+        logger.info(f'User {new_user.email} created')
+        return new_user  
     except IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='user already exists')
     except Exception as e: 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=str(e))
 
 #NOTE -  Create Seller
-async def create_seller(request:SellerCreate,db:AsyncSession):
-    new_user= Seller(**request.model_dump())
+async def create_seller(new_user:Seller,db:AsyncSession):
     try:
         db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
-        logger.info(f'User {request.email} created')
+        logger.info(f'User {new_user.email} created')
         return new_user
     except IntegrityError:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='User already exists')
@@ -114,7 +112,8 @@ async def process_verification(payload:OtpSchema,db:AsyncSession):
          raise VerificationException
     account_type = user_data.get('account_type')
     if account_type == AccountTypeEnum.buyer:
-        user = BuyerCreate(**user_data)
+        user = Buyer(**user_data)
+        user.verified=True
         await create_buyer(user,db)
         access_token = await create_access_token(
         data={"sub": user.username}
@@ -122,7 +121,8 @@ async def process_verification(payload:OtpSchema,db:AsyncSession):
         logger.info(f'{user.email} Sucessfully verified and created')
         return Token(access_token=access_token, token_type="Bearer")
     
-    user = SellerCreate(**user_data)
+    user = Seller(**user_data)
+    user.verified = True
     await create_seller(user,db)
     access_token = await create_access_token(
     data={"sub": user.username}
