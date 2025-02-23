@@ -1,15 +1,13 @@
 import  logging
 from dotenv import load_dotenv
 import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from core.database import Base,engine
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from datetime import timedelta
-
 import logging
+
 load_dotenv()
+
 class ColoredFormatter(logging.Formatter):
     COLORS = {
         "DEBUG": "\033[94m",   # Blue
@@ -39,7 +37,7 @@ logger.addHandler(handler)
 
 
 
-SIGN_UP_DESC ='''Once accounts are creaeted they are stored temporarily for 2 hours before deletion if email verification is not completed
+SIGN_UP_DESC ='''Once accounts are created they are stored temporarily for 2 hours before deletion if email verification is not completed
 '''
 
 
@@ -62,24 +60,16 @@ EMAIL = os.getenv('EMAIL')
 APP_PASS = os.getenv('APP_PASS')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
 
-#NOTE - OTHER CONFIGS
+#NOTE - DB configs
 REDIS_URL = os.getenv('REDIS_URL')
 VERIFICATION_CODE_EXP_MIN = timedelta(minutes=int(os.getenv('VERIFICATION_CODE_EXP_MIN')))
+DB_URL = os.getenv('DB_URL')
 
 #NOTE -  Templates Dir
 Templates_dir = os.path.join(os.getcwd(),'app','templates')
 
 #NOTE - Application startup
-@asynccontextmanager
-async def lifespan(app:FastAPI):
-    async with engine.begin() as conn:
-        if DEBUG_MODE:
-            await conn.run_sync(Base.metadata.drop_all)
-            logger.info('Tables Dropped')
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info('Tables Created')
-        
-    yield
+
     
 
 
