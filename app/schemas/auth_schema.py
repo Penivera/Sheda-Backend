@@ -39,7 +39,7 @@ class UserInDB(UserShow):
         from_attributes = True
 
 class OtpSchema(BaseModel):
-    email:EmailStr
+    email:Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     otp:Union[str,int]
     
 #NOTE -  For Resend otp  
