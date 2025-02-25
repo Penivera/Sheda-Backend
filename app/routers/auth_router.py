@@ -2,7 +2,7 @@ from fastapi import APIRouter,Depends,status,HTTPException
 from app.schemas.user_schema import BuyerCreate,SellerCreate,BaseUserSchema
 from app.services.auth import process_signup,process_verification,proccess_logout
 from typing import Annotated
-from app.services.auth import authenticate_user,create_access_token,process_resend_otp
+from app.services.auth import authenticate_user,create_access_token,process_send_otp
 from core.dependecies import PassWordRequestForm
 from core.dependecies import DBSession,InvalidCredentialsException,TokenDependecy
 from app.schemas.auth_schema import LoginData,User,Token,OtpSchema,OtpResendSchema
@@ -36,9 +36,9 @@ async def verify_account(payload:OtpSchema,db:DBSession):
         return await process_verification(payload,db)
     
     
-@router.post('/resend-otp',response_model=dict,status_code=status.HTTP_202_ACCEPTED)
+@router.post('/send-otp',response_model=dict,status_code=status.HTTP_202_ACCEPTED)
 async def resend_otp(payload:OtpResendSchema):
-    return await process_resend_otp(payload)
+    return await process_send_otp(payload)
 
 #NOTE - Login Route
 @router.post("/login",response_model=Token)
