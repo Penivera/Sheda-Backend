@@ -30,7 +30,7 @@ async def verify_otp(otp:str,email:str,sign_up=False):
 
 async def blacklist_token(token:str,time:int):
     await redis.setex(BLACKLIST_PREFIX.format(token),time,'blacklisted')
-    logger.info(f'Token added to blacklist for {time} seconds')
+    logger.info(f'Token added to blacklist for {time/60} minutes')
     
 async def token_exp_time(token:str):
     payload = jwt.decode(token,SECRET_KEY, algorithms=[ALGORITHM])
