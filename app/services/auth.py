@@ -129,7 +129,7 @@ async def process_verification(payload:OtpSchema,db:AsyncSession):
     )
     return Token(access_token=access_token, token_type="Bearer")
 
-async def process_resend_otp(payload:OtpSchema):
+async def process_send_otp(payload:OtpSchema):
     send_otp = await resend_otp(payload.email)
     if send_otp:
         return {'message':'OTP Resent'}
