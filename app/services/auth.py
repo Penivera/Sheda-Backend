@@ -1,20 +1,20 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.user import Buyer,Seller
+from app.models.user import Buyer,Seller,BaseUser
 from fastapi import status,HTTPException
-from app.models.user import BaseUser
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
 import re
 from core.configs import PHONE_REGEX,redis,BLACKLIST_PREFIX
 from app.schemas.auth_schema import LoginData,OtpSchema,Token
 from app.utils.utils import verify_password
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger
 import jwt
 from sqlalchemy.exc import IntegrityError
 from core.dependecies import VerificationException
 from app.schemas.user_schema import BaseUserSchema
-from app.utils.email import create_set_send_otp,verify_otp,resend_otp
+from app.utils.email import create_set_send_otp,send_otp_for_signup
+from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError
 
@@ -78,7 +78,7 @@ class GetUser:
         return result.scalar_one_or_none()  #NOTE - Fetch the first matching result safely
     
     
-async def get_user(db:AsyncSession,identifier:str)->BaseUser:
+async def get_user(db:AsyncSession,identifier:str)->BaseUserSchema:
         user_fetcher = GetUser(db, identifier)
         user = await user_fetcher.get_user()
         return user
@@ -91,9 +91,10 @@ async def authenticate_user(db:AsyncSession,login_data:LoginData):
         return False
     return user
 
-async def create_access_token(data:dict):
+async def create_access_token(data:dict,expire_time=None):
+    expiration = timedelta(minutes=expire_time) if expire_time else expire_delta
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc)+ expire_delta
+    expire = datetime.now(timezone.utc)+ expiration
     to_encode.update({'exp':expire})
     encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
     return encoded_jwt
@@ -107,8 +108,8 @@ async def process_signup(user_data:BaseUserSchema):
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail= 'unable to send confirmation email'
     )
-async def process_verification(payload:OtpSchema,db:AsyncSession):
-    user_data = await verify_otp(**payload.model_dump())
+async def process_accnt_verification(payload:OtpSchema,db:AsyncSession):
+    user_data = await verify_otp(**payload.model_dump(),sign_up=True)
     if not user_data:
          raise VerificationException
     account_type = user_data.get('account_type')
@@ -131,7 +132,7 @@ async def process_verification(payload:OtpSchema,db:AsyncSession):
     return Token(access_token=access_token, token_type="Bearer")
 
 async def process_send_otp(payload:OtpSchema):
-    send_otp = await resend_otp(payload.email)
+    send_otp = await send_otp_for_signup(payload.email)
     if send_otp:
         return {'message':'OTP Resent'}
     raise HTTPException(
@@ -142,15 +143,34 @@ async def process_send_otp(payload:OtpSchema):
     
 async def proccess_logout(token:str):
     try:
-        payload = jwt.decode(token,SECRET_KEY, algorithms=[ALGORITHM])
-        exp_timestamp = payload.get("exp")
-        logger.info(f'Exp timestamp {exp_timestamp}')
-        if not exp_timestamp:
+        remaining_time = await token_exp_time(token)
+        if not remaining_time:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
-        current_time = datetime.now(timezone.utc).timestamp()
-        remaining_time = max(0, int(exp_timestamp - current_time))
-        await redis.setex(BLACKLIST_PREFIX.format(token),remaining_time,'blacklisted')
+        
+        await blacklist_token(token,remaining_time)
+        #await redis.setex(BLACKLIST_PREFIX.format(token),remaining_time,'blacklisted')
     except InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nah lie Invalid token")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
     return {'message':'Logged out'}
 
+
+async def process_fgt_pwd(email:str):
+    user = await get_user(email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='User not found')
+    send_set_otp = await create_set_send_otp(email)
+    if send_set_otp:
+        return {'message':'Password reset otp sent'}
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail= 'unable to send confirmation email'
+    )
+
+async def verify_request_otp(email:str,otp:str,db:AsyncSession):
+    user = await get_user(db,email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='User not found')
+    verified = await verify_otp(email,otp)
+    if not verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Invalid OTP')
+    return True

@@ -33,14 +33,15 @@ async def send_otp_mail(to_email,otp:str):
         logger.error(f'Failed to send email \n{str(e)}')
         return False
         
-async def create_set_send_otp(email:str,user_data:dict) -> int:
+async def create_set_send_otp(email:str,user_data:dict=None) -> int:
     otp= str(randint(1000,9999))
     await redis.setex(otp_prefix.format(email),timedelta(minutes=2),otp)
     logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)} minutes')
-    await redis.hset(user_data_prefix.format(email),mapping=user_data)
-    logger.info('User data set to redis')
-    await redis.expire(user_data_prefix.format(email),timedelta(hours=2))
-    logger.info('timer set on user data 2 hours')
+    if user_data:
+        await redis.hset(user_data_prefix.format(email),mapping=user_data)
+        logger.info('User data set to redis')
+        await redis.expire(user_data_prefix.format(email),timedelta(hours=2))
+        logger.info('timer set on user data 2 hours')
     send_otp = await send_otp_mail(email,otp)
     if send_otp:
         logger.info('OTP Sent')
@@ -48,7 +49,7 @@ async def create_set_send_otp(email:str,user_data:dict) -> int:
     logger.error('Failed to send OTP')
     return False
 
-async def resend_otp(email:str):
+async def send_otp_for_signup(email:str):
     stored_otp = await redis.get(otp_prefix.format(email))
     user_data = await redis.hgetall(user_data_prefix.format(email))
     if stored_otp and user_data:
@@ -68,18 +69,9 @@ async def resend_otp(email:str):
     
     return False
 
-async def verify_otp(otp:str,email:str):
-    stored_otp = await redis.get(otp_prefix.format(email))
-    if stored_otp and stored_otp.decode() == otp:
-        logger.info(f'otp verified')
-        user_data = await redis.hgetall(user_data_prefix.format(email))
-        user_data ={key.decode():value.decode() for key,value in user_data.items()}
-        logger.info(f'{email} Data retrieved from redis')
-        await redis.delete(user_data_prefix.format(email))
-        logger.info(f'{email} Data deleted from redis')
-        return user_data
-    logger.error('OTP not found')
-    return False
+
+
+
     
     
     

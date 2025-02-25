@@ -27,3 +27,5 @@ class SellerCreate(BaseUserSchema):
     account_type:Annotated[AccountTypeEnum,Field(examples=['seller'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
+class PasswordReset(BaseModel):
+    password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
