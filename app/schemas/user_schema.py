@@ -25,5 +25,5 @@ class BuyerCreate(BaseUserSchema):
     
 class SellerCreate(BaseUserSchema):
     account_type:Annotated[AccountTypeEnum,Field(examples=['seller'])]
-    password:Annotated[str,BeforeValidator(hash_password),Field(example='admin')]
+    password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
