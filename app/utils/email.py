@@ -5,12 +5,11 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from random import randint
 from datetime import timedelta
-import redis.asyncio as aioredis 
-from core.configs import REDIS_URL,VERIFICATION_CODE_EXP_MIN,EMAIL,EMAIL_HOST,APP_PASS, logger
+ 
+from core.configs import redis,VERIFICATION_CODE_EXP_MIN,EMAIL,EMAIL_HOST,APP_PASS, logger,user_data_prefix,otp_prefix
 from core.dependecies import env,DBSession
 
 
-redis = aioredis.from_url(REDIS_URL)
 
 async def send_otp_mail(to_email,otp:str):
     template = env.get_template("otp_email.txt")
@@ -36,11 +35,11 @@ async def send_otp_mail(to_email,otp:str):
         
 async def create_set_send_otp(email:str,user_data:dict) -> int:
     otp= str(randint(1000,9999))
-    await redis.setex(f'otp:{email}',timedelta(minutes=2),otp)
-    logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)}')
-    await redis.hset(f'user_data:{email}',mapping=user_data)
+    await redis.setex(otp_prefix.format(email),timedelta(minutes=2),otp)
+    logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)} minutes')
+    await redis.hset(user_data_prefix.format(email),mapping=user_data)
     logger.info('User data set to redis')
-    await redis.expire(f'user_data:{email}',timedelta(hours=2))
+    await redis.expire(user_data_prefix.format(email),timedelta(hours=2))
     logger.info('timer set on user data 2 hours')
     send_otp = await send_otp_mail(email,otp)
     if send_otp:
@@ -50,8 +49,8 @@ async def create_set_send_otp(email:str,user_data:dict) -> int:
     return False
 
 async def resend_otp(email:str):
-    stored_otp = await redis.get(f'otp:{email}')
-    user_data = await redis.hgetall(f'user_data:{email}')
+    stored_otp = await redis.get(otp_prefix.format(email))
+    user_data = await redis.hgetall(user_data_prefix.format(email))
     if stored_otp and user_data:
         otp = stored_otp.decode()
         send_otp = await send_otp_mail(email,otp)
@@ -60,7 +59,7 @@ async def resend_otp(email:str):
             return True
     logger.error('OTP not found')
     otp = str(randint(1000,9999))
-    await redis.setex(f'otp:{email}',timedelta(minutes=2),otp)
+    await redis.setex(otp_prefix.format(email),timedelta(minutes=2),otp)
     logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)}')
     send_otp = await send_otp_mail(email,otp)
     if send_otp:
@@ -70,13 +69,13 @@ async def resend_otp(email:str):
     return False
 
 async def verify_otp(otp:str,email:str):
-    stored_otp = await redis.get(f'otp:{email}')
+    stored_otp = await redis.get(otp_prefix.format(email))
     if stored_otp and stored_otp.decode() == otp:
         logger.info(f'otp verified')
-        user_data = await redis.hgetall(f'user_data:{email}')
+        user_data = await redis.hgetall(user_data_prefix.format(email))
         user_data ={key.decode():value.decode() for key,value in user_data.items()}
         logger.info(f'{email} Data retrieved from redis')
-        await redis.delete(f'user_data:{email}')
+        await redis.delete(user_data_prefix.format(email))
         logger.info(f'{email} Data deleted from redis')
         return user_data
     logger.error('OTP not found')

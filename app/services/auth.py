@@ -5,18 +5,18 @@ from app.models.user import BaseUser
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
 import re
-from core.configs import PHONE_REGEX
-from app.schemas.auth_schema import LoginData,TokenData,OtpSchema,Token,OtpResendSchema
+from core.configs import PHONE_REGEX,redis,BLACKLIST_PREFIX
+from app.schemas.auth_schema import LoginData,OtpSchema,Token
 from app.utils.utils import verify_password
 from datetime import datetime,timezone
 from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger
 import jwt
-from jwt.exceptions import InvalidTokenError
 from sqlalchemy.exc import IntegrityError
-from core.dependecies import DBSession,VerificationException
-from app.schemas.user_schema import BaseUserSchema,BuyerCreate,SellerCreate
+from core.dependecies import VerificationException
+from app.schemas.user_schema import BaseUserSchema
 from app.utils.email import create_set_send_otp,verify_otp,resend_otp
 from app.utils.enums import AccountTypeEnum
+from jwt.exceptions import InvalidTokenError
 #NOTE - Create Buyer
 async def create_buyer(new_user:Buyer,db:AsyncSession):
     try:
@@ -77,7 +77,7 @@ class GetUser:
         return result.scalar_one_or_none()  #NOTE - Fetch the first matching result safely
     
     
-async def get_user(db:DBSession,identifier:str)->BaseUser:
+async def get_user(db:AsyncSession,identifier:str)->BaseUser:
         user_fetcher = GetUser(db, identifier)
         user = await user_fetcher.get_user()
         return user
@@ -138,4 +138,18 @@ async def process_resend_otp(payload:OtpSchema):
         detail= 'unable to send confirmation email'
     )
     
+    
+async def proccess_logout(token:str):
+    try:
+        payload = jwt.decode(token,SECRET_KEY, algorithms=[ALGORITHM])
+        exp_timestamp = payload.get("exp")
+        logger.info(f'Exp timestamp {exp_timestamp}')
+        if not exp_timestamp:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
+        current_time = datetime.now(timezone.utc).timestamp()
+        remaining_time = max(0, int(exp_timestamp - current_time))
+        await redis.setex(BLACKLIST_PREFIX.format(token),remaining_time,'blacklisted')
+    except InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nah lie Invalid token")
+    return {'message':'Logged out'}
 

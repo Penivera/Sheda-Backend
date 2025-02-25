@@ -4,7 +4,7 @@ from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 from jinja2 import Environment, FileSystemLoader
-
+from fastapi.security import OAuth2PasswordBearer
 
 env = Environment(loader=FileSystemLoader("app/templates"))
 
@@ -16,7 +16,8 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         
         super().__init__(username=username,password=password)
 
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
+TokenDependecy = Annotated[str,Depends(oauth2_scheme)]
 
 DBSession = Annotated[AsyncSession,Depends(get_db)]
 PassWordRequestForm=Annotated[CustomOAuth2PasswordRequestForm, Depends()]
@@ -33,3 +34,5 @@ VerificationException = HTTPException(
     status_code = status.HTTP_400_BAD_REQUEST,
     detail='Invalid OTP Or Expired Token'
 )
+
+FileUploadException =  HTTPException(status_code=400, detail="No file uploaded")

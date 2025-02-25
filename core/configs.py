@@ -2,10 +2,9 @@ import  logging
 from dotenv import load_dotenv
 import os
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer
 from datetime import timedelta
 import logging
-
+import redis.asyncio as aioredis
 load_dotenv()
 
 class ColoredFormatter(logging.Formatter):
@@ -49,7 +48,6 @@ PHONE_REGEX = r'^\+\d{10,15}$'
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = os.getenv('ALGORITHM')
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
 expire_delta = timedelta(days=30)
 
 #NOTE - Debug mode
@@ -62,13 +60,27 @@ EMAIL_HOST = os.getenv('EMAIL_HOST')
 
 #NOTE - DB configs
 REDIS_URL = os.getenv('REDIS_URL')
+redis = aioredis.from_url(REDIS_URL)
 VERIFICATION_CODE_EXP_MIN = timedelta(minutes=int(os.getenv('VERIFICATION_CODE_EXP_MIN')))
 DB_URL = os.getenv('DB_URL')
+#NOTE - Redis variables
+BLACKLIST_PREFIX = 'blacklist:{}'
+user_data_prefix='user_data:{}'
+otp_prefix = 'otp:{}'
+
 
 #NOTE -  Templates Dir
 Templates_dir = os.path.join(os.getcwd(),'app','templates')
 
-#NOTE - Application startup
+#NOTE - Media dir
+
+Media_dir = os.path.join(os.getcwd(),'media')
+os.makedirs(Media_dir,exist_ok=True)
+
+
+#NOTE - Middleware
+origins = ['*',]
+
 
     
 

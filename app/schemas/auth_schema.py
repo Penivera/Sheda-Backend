@@ -19,19 +19,17 @@ class BuyerLogin(BaseModel):
     email:Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     password:str
     
-class UserShow(BaseUserSchema):
-    id:int
+class User(BaseUserSchema):
     is_active:bool
     created_at:datetime
     updated_at:datetime
-    verification_status:bool
-    kyc_status:KycStatusEnum
+    verified:bool
     location:str
-    access_toke:Token
+    access_token:Optional[Token] =None
     class config:
         from_attributes = True
     
-class UserInDB(UserShow):
+class UserInDB(User):
     account_type:AccountTypeEnum
     password:str
     
