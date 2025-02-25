@@ -11,7 +11,7 @@ from typing import Annotated
 
 async def get_current_user(token:TokenDependecy):
     is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
-    logger.info(f'Blacklisted {is_blacklisted}')
+    logger.info(f'Blacklisted {bool(is_blacklisted)}')
     if is_blacklisted:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
     try:
