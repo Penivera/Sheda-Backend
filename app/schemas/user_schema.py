@@ -11,7 +11,7 @@ from typing import Annotated
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
-    profile_pic : Annotated[Optional[str],Field(examples=['https://example/img/user.jpg'],max_length=50)]
+    profile_pic : Annotated[Optional[str],Field(examples=['https://example/img/user.jpg'],max_length=50)]=None
     username:Annotated[Optional[str],Field(example='username',default='Admin',max_length=30)]
     email: Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     phone_number:Optional[PhoneStr]
