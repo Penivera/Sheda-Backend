@@ -17,7 +17,7 @@ class BaseUser(Base):
     __tablename__ = 'user'
     id: Mapped[int]= mapped_column('id',primary_key=True,autoincrement=True)
     username:Mapped[str]=mapped_column(String(30),nullable=True,index=True)
-    profile_pic:Mapped[str] = mapped_column(String(30),nullable=True,)
+    profile_pic:Mapped[str] = mapped_column(String(50),nullable=True,)
     email :Mapped[str]= mapped_column(String,unique=True,nullable=False,)
     phone_number:Mapped[str]=mapped_column(String(15),nullable=False,unique=True,index=True,)
     password:Mapped[str]=mapped_column(String,nullable=False,)

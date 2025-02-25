@@ -1,13 +1,13 @@
 from fastapi import APIRouter,Depends,status,HTTPException
 from app.schemas.user_schema import BuyerCreate,SellerCreate,BaseUserSchema
-from app.services.auth import process_signup,process_verification
+from app.services.auth import process_signup,process_verification,proccess_logout
 from typing import Annotated
 from app.services.auth import authenticate_user,create_access_token,process_resend_otp
 from core.dependecies import PassWordRequestForm
-from core.dependecies import DBSession,InvalidCredentialsException,VerificationException
-from app.schemas.auth_schema import LoginData,UserShow,Token,OtpSchema,OtpResendSchema
+from core.dependecies import DBSession,InvalidCredentialsException,TokenDependecy
+from app.schemas.auth_schema import LoginData,User,Token,OtpSchema,OtpResendSchema
 from core.configs import SIGN_UP_DESC
-
+from app.services.user_service import GetCurrentActUSer
 
 
 
@@ -44,13 +44,21 @@ async def resend_otp(payload:OtpResendSchema):
 @router.post("/login",response_model=Token)
 async def login_for_access_token(form_data: PassWordRequestForm,db:DBSession) -> Token:
     login_data = LoginData(**form_data.__dict__)
-    user:UserShow = await authenticate_user(db, login_data)
+    user:User = await authenticate_user(db, login_data)
+    #user = User(**user)
     if not user:
         raise InvalidCredentialsException
     access_token = await create_access_token(
         data={"sub": user.username}
         )
-    return Token(access_token=access_token, token_type="Bearer")
+    #user.access_token = Token(access_token=access_token)
+    return Token(access_token=access_token)
+
+
+@router.post('/logout',status_code=status.HTTP_202_ACCEPTED)
+async def logout(token:TokenDependecy):
+    return await proccess_logout(token)
+
 
 
 
