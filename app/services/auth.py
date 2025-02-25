@@ -17,6 +17,7 @@ from app.schemas.user_schema import BaseUserSchema
 from app.utils.email import create_set_send_otp,verify_otp,resend_otp
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError
+
 #NOTE - Create Buyer
 async def create_buyer(new_user:Buyer,db:AsyncSession):
     try:
