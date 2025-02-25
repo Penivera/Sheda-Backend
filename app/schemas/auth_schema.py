@@ -41,7 +41,7 @@ class OtpSchema(BaseModel):
     otp:Union[str,int]
     
 #NOTE -  For Resend otp  
-class OtpResendSchema(BaseModel):
+class OtpSend(BaseModel):
     email:Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     
         

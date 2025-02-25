@@ -19,3 +19,11 @@ async def upload_image(file:UploadFile,user:BaseUserSchema,db:AsyncSession)->str
     await db.refresh(user)
     
     return file_path
+
+
+async def reset_password(user,db:AsyncSession,new_password:str):
+    user.password = new_password
+    db.add(user) 
+    await db.commit()
+    await db.refresh(user)
+    

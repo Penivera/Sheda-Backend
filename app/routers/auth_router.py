@@ -1,11 +1,11 @@
 from fastapi import APIRouter,Depends,status,HTTPException
 from app.schemas.user_schema import BuyerCreate,SellerCreate,BaseUserSchema
-from app.services.auth import process_signup,process_verification,proccess_logout
+from app.services.auth import process_signup,process_accnt_verification,proccess_logout
 from typing import Annotated
-from app.services.auth import authenticate_user,create_access_token,process_send_otp
+from app.services.auth import authenticate_user,create_access_token,process_send_otp,process_fgt_pwd,verify_request_otp
 from core.dependecies import PassWordRequestForm
 from core.dependecies import DBSession,InvalidCredentialsException,TokenDependecy
-from app.schemas.auth_schema import LoginData,User,Token,OtpSchema,OtpResendSchema
+from app.schemas.auth_schema import LoginData,User,Token,OtpSchema,OtpSend
 from core.configs import SIGN_UP_DESC
 from app.services.user_service import GetCurrentActUSer
 
@@ -30,15 +30,17 @@ async def signup_seller(request:SellerCreate):
     return await process_signup(request)
 
 #NOTE - Verification Endpoint
-@router.post('/verify',response_model=Token,status_code=status.HTTP_201_CREATED)
+@router.post('/verify-accnt',response_model=Token,status_code=status.HTTP_201_CREATED)
 async def verify_account(payload:OtpSchema,db:DBSession):
     
-        return await process_verification(payload,db)
+        return await process_accnt_verification(payload,db)
     
     
 @router.post('/send-otp',response_model=dict,status_code=status.HTTP_202_ACCEPTED)
-async def resend_otp(payload:OtpResendSchema):
+async def resend_otp(payload:OtpSend):
     return await process_send_otp(payload)
+
+
 
 #NOTE - Login Route
 @router.post("/login",response_model=Token)
@@ -58,6 +60,21 @@ async def login_for_access_token(form_data: PassWordRequestForm,db:DBSession) ->
 @router.post('/logout',status_code=status.HTTP_202_ACCEPTED)
 async def logout(token:TokenDependecy):
     return await proccess_logout(token)
+
+
+@router.post('/fgt-pwd',status_code=status.HTTP_202_ACCEPTED,response_model=dict,description='Send OTP to email')
+async def forgotten_pwd(payload:OtpSend):
+    return await process_fgt_pwd(payload.email)
+
+
+@router.post('/verify-otp',status_code=status.HTTP_202_ACCEPTED,response_model=Token)
+async def verify_otp(payload:OtpSchema,db:DBSession):
+    verified = verify_request_otp(payload.email,payload.otp,db)
+    if verified:
+        token = await create_access_token(data={'sub':payload.email},expire_time=5)
+        return Token(access_token=token)
+    
+
 
 
 
