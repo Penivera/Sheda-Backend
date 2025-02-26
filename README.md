@@ -63,7 +63,7 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
 4. **Set up environment variables**  
    Create a `.env` file and configure your database, JWT secret, and Redis settings.  
 
-5. **View live seever @ https://sheda-backend-production.up.railway.app/#/Auth/signup_buyer_auth_signup_buyer_post**  
+5. **View live server @ https://sheda-backend-production.up.railway.app/#/Auth/signup_buyer_auth_signup_buyer_post**  
    
 
 6. **Start the server**  
