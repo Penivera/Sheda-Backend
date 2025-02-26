@@ -2,8 +2,11 @@ from core.configs import pwd_context,logger,redis,user_data_prefix,otp_prefix,BL
 import jwt
 from typing import Any
 from datetime import datetime,timezone
+from pydantic import AnyUrl
 
 
+def decode_url(url:AnyUrl)->str:
+    return str(url)
 
 def hash_password(password:Any)->str:
     return pwd_context.hash(password)
