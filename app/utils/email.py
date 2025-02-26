@@ -5,7 +5,7 @@ from random import randint
 from datetime import timedelta
  
 from core.configs import redis,VERIFICATION_CODE_EXP_MIN,EMAIL,EMAIL_HOST,APP_PASS, logger,user_data_prefix,otp_prefix,TEMPLATES
-
+from core.dependecies import env
 
 token_expiration = int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)
 
