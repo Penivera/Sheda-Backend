@@ -81,6 +81,13 @@ os.makedirs(Media_dir,exist_ok=True)
 #NOTE - Middleware
 origins = ['*',]
 
+#NOTE - Templates
+TEMPLATES = {
+    "otp": "otp_email.txt",
+    "welcome": "welcome_email.txt",
+    "reset_password": "reset_password.txt",
+}
+
 
     
 
