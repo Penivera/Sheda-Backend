@@ -10,16 +10,20 @@ from typing import Annotated
 from datetime import datetime
 from app.utils.enums import KycStatusEnum
 
+
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
     profile_pic : Annotated[Optional[str],Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
     username:Annotated[Optional[str],Field(example='username',default='Admin',max_length=30)]
-    email: Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
+    email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     phone_number:Optional[PhoneStr]
-    account_type:AccountTypeEnum
-    fullname:str
+    account_type:Optional[AccountTypeEnum]
+    fullname:Optional[str]
     agency_name:Optional[str]
-    location:Optional[str]=None
+    location:Optional[str]
+    
+    class config:
+        from_attributes = True
         
 class BuyerCreate(BaseUserSchema):
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
@@ -44,8 +48,12 @@ class UserInDB(UserShow):
     password:str
     
 class UserUpdate(BaseUserSchema):
-    Kyc_status:KycStatusEnum
+    Kyc_status:Optional[KycStatusEnum]
     password:Annotated[Optional[str],BeforeValidator(hash_password),Field(examples=['admin'])]
     class config:
         from_attributes = True
+    
+
+        
+
     

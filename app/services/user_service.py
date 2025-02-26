@@ -4,11 +4,12 @@ from jwt.exceptions import InvalidTokenError
 from core.configs import SECRET_KEY,ALGORITHM,redis,logger,BLACKLIST_PREFIX
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user
+from app.services.profile import update_user
 from core.database import AsyncSessionLocal
 from app.schemas.user_schema import UserShow
 from fastapi import Depends,HTTPException,status
 from typing import Annotated
-from app.schemas.user_schema import UserInDB
+from app.schemas.user_schema import UserInDB,UserUpdate
 
 
 async def get_current_user(token:TokenDependecy):
@@ -46,5 +47,7 @@ async def reset_password(user:UserInDB,db:DBSession,new_password:str):
     db.add(user) 
     await db.commit()
     await db.refresh(user)
+    
+
 GetCurrentActUSer = Annotated[UserShow,Depends(get_current_active_user)]
 GetUser = Annotated[str,Depends(get_current_user)]

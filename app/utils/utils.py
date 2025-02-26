@@ -17,14 +17,14 @@ async def verify_otp(otp:str,email:str,sign_up=False):
     stored_otp = await redis.get(otp_prefix.format(email))
     if stored_otp and stored_otp.decode() == otp:
         logger.info(f'otp verified')
+        if sign_up:
+            user_data = await redis.hgetall(user_data_prefix.format(email))
+            user_data ={key.decode():value.decode() for key,value in user_data.items()}
+            logger.info(f'{email} Data retrieved from redis')
+            await redis.delete(user_data_prefix.format(email))
+            logger.info(f'{email} Data deleted from redis')
+            return user_data
         return True
-    if sign_up:
-        user_data = await redis.hgetall(user_data_prefix.format(email))
-        user_data ={key.decode():value.decode() for key,value in user_data.items()}
-        logger.info(f'{email} Data retrieved from redis')
-        await redis.delete(user_data_prefix.format(email))
-        logger.info(f'{email} Data deleted from redis')
-        return user_data
     logger.error('OTP not found')
     return False
 
