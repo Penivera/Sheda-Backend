@@ -75,7 +75,10 @@ class GetUser:
             query = query.where(BaseUser.username == self.identifier)
 
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()  #NOTE - Fetch the first matching result safely
+        new_user = result.scalar_one_or_none() 
+        if new_user:
+            await self.db.refresh(new_user)
+        return new_user
     
     
 async def get_user(db:AsyncSession,identifier:str)->BaseUserSchema:
