@@ -10,11 +10,11 @@ from typing import Optional
 from typing import Annotated
 from datetime import datetime
 from app.utils.enums import KycStatusEnum
-
+from typing import Union
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
-    profile_pic : Annotated[Optional[AnyUrl],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
+    profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
     username:Annotated[Optional[str],Field(example='username',default='Admin',max_length=30)]
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     phone_number:Optional[PhoneStr]
