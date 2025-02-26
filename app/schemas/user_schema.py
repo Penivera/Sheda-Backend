@@ -1,10 +1,11 @@
 from pydantic import (BaseModel,
                       BeforeValidator,
+                      AfterValidator,
                       EmailStr,
                       Field,AnyUrl)
 from typing import Optional,Annotated
 from  app.utils.enums import PhoneStr,AccountTypeEnum
-from app.utils.utils import hash_password
+from app.utils.utils import hash_password,decode_url
 from typing import Optional
 from typing import Annotated
 from datetime import datetime
@@ -13,7 +14,7 @@ from app.utils.enums import KycStatusEnum
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
-    profile_pic : Annotated[Optional[AnyUrl],Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
+    profile_pic : Annotated[Optional[AnyUrl],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
     username:Annotated[Optional[str],Field(example='username',default='Admin',max_length=30)]
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     phone_number:Optional[PhoneStr]
