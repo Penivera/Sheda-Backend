@@ -1,13 +1,15 @@
-from core.dependecies import TokenDependecy,InvalidCredentialsException
+from core.dependecies import TokenDependecy,InvalidCredentialsException,DBSession
 import jwt
 from jwt.exceptions import InvalidTokenError
 from core.configs import SECRET_KEY,ALGORITHM,redis,logger,BLACKLIST_PREFIX
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user
 from core.database import AsyncSessionLocal
-from app.schemas.auth_schema import User
+from app.schemas.user_schema import UserShow
 from fastapi import Depends,HTTPException,status
 from typing import Annotated
+from app.schemas.user_schema import UserInDB
+
 
 async def get_current_user(token:TokenDependecy):
     is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
@@ -32,11 +34,17 @@ async def get_current_user(token:TokenDependecy):
     return user
     
     
-async def get_current_active_user(current_user:User = Depends(get_current_user)):
+async def get_current_active_user(current_user:UserShow = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
     return current_user
 
 
-GetCurrentActUSer = Annotated[User,Depends(get_current_active_user)]
+
+async def reset_password(user:UserInDB,db:DBSession,new_password:str):
+    user.password = new_password
+    db.add(user) 
+    await db.commit()
+    await db.refresh(user)
+GetCurrentActUSer = Annotated[UserShow,Depends(get_current_active_user)]
 GetUser = Annotated[str,Depends(get_current_user)]
