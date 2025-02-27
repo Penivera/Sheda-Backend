@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from core.database import Base,engine
 from fastapi import FastAPI
 from core.configs import DEBUG_MODE,logger
-
+from app import models
 
 
 

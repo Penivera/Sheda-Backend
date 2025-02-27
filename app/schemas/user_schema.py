@@ -12,6 +12,7 @@ from datetime import datetime
 from app.utils.enums import KycStatusEnum
 from typing import Union
 
+
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
     profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
@@ -41,6 +42,7 @@ class UserShow(BaseUserSchema):
     verified:bool
     location:str
     kyc_status: KycStatusEnum
+    listing:Optional[list]
     class config:
         from_attributes = True
     
@@ -51,6 +53,12 @@ class UserInDB(UserShow):
 class UserUpdate(BaseUserSchema):
     Kyc_status:Optional[KycStatusEnum]
     password:Annotated[Optional[str],BeforeValidator(hash_password),Field(examples=['admin'])]
+    class config:
+        from_attributes = True
+        
+        
+class ProfilePic(BaseModel):
+    profile_pic:str
     class config:
         from_attributes = True
     

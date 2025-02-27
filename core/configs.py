@@ -38,7 +38,8 @@ logger.addHandler(handler)
 
 SIGN_UP_DESC ='''Once accounts are created they are stored temporarily for 2 hours before deletion if email verification is not completed
 '''
-
+Reset_pass_desc ='''
+Token returned from this endpoint will expire in 10 minutes if the new password is not set'''
 
 #NOTE - Regex for Phone
 PHONE_REGEX = r'^\+\d{10,15}$'
