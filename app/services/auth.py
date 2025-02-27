@@ -151,7 +151,6 @@ async def proccess_logout(token:str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
         
         await blacklist_token(token,remaining_time)
-        #await redis.setex(BLACKLIST_PREFIX.format(token),remaining_time,'blacklisted')
     except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
     return {'message':'Logged out'}

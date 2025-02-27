@@ -7,7 +7,7 @@ from sqlalchemy import (String,
                         ForeignKey,
                         CheckConstraint,
                         JSON)
-from sqlalchemy.orm import mapped_column,Mapped
+from sqlalchemy.orm import mapped_column,Mapped,relationship
 from datetime import datetime
 from app.utils.enums import AccountTypeEnum,KycStatusEnum
 from typing import Optional
@@ -27,6 +27,7 @@ class BaseUser(Base):
     created_at: Mapped[datetime]= mapped_column(DateTime,default=datetime.now,)
     updated_at:Mapped[datetime]= mapped_column(DateTime,default=datetime.now,onupdate=datetime.now,)
     verified:Mapped[bool] = mapped_column(Boolean,default=False,)
+
     __mapper_args__ = {
         "polymorphic_identity": "user",
         "polymorphic_on": account_type,
@@ -57,6 +58,7 @@ class Seller(BaseUser):
     fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
     kyc_status:Mapped[bool]=mapped_column(Boolean,default=False,)
+    listing = relationship('Property',back_populates='seller',cascade='all, delete-orphan')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.seller,
     }

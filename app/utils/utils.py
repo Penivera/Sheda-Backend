@@ -25,7 +25,8 @@ async def verify_otp(otp:str,email:str,sign_up=False):
             user_data ={key.decode():value.decode() for key,value in user_data.items()}
             logger.info(f'{email} Data retrieved from redis')
             await redis.delete(user_data_prefix.format(email))
-            logger.info(f'{email} Data deleted from redis')
+            await redis.delete(otp_prefix.format(email))
+            logger.info(f'{email} and OTP Data deleted from redis')
             return user_data
         return True
     logger.error('OTP not found')

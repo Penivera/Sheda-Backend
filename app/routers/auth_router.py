@@ -5,7 +5,7 @@ from app.services.auth import authenticate_user,create_access_token,process_send
 from core.dependecies import PassWordRequestForm
 from core.dependecies import DBSession,InvalidCredentialsException,TokenDependecy
 from app.schemas.auth_schema import LoginData,Token,OtpSchema,OtpSend,PasswordReset
-from core.configs import SIGN_UP_DESC
+from core.configs import SIGN_UP_DESC,Reset_pass_desc
 from app.services.user_service import get_current_user,reset_password
 from app.services.auth import create_access_token
 from app.utils.utils import blacklist_token,token_exp_time
@@ -68,8 +68,8 @@ async def forgotten_pwd(payload:OtpSend):
     return await process_fgt_pwd(payload.email)
 
 
-@router.post('/verify-otp',status_code=status.HTTP_202_ACCEPTED,response_model=Token)
-async def verify_otp(payload:OtpSchema,db:DBSession):
+@router.post('/verify-otp',status_code=status.HTTP_202_ACCEPTED,response_model=Token,description=Reset_pass_desc)
+async def verify_otp(payload:OtpSchema,db:DBSession,):
     verified = verify_request_otp(payload.email,payload.otp,db)
     if verified:
         token = await create_access_token(data={'sub':payload.email},expire_time=5)
