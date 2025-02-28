@@ -16,7 +16,10 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         
         super().__init__(username=username,password=password)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login',scopes={
+    'seller':'Allow creating and managing products',
+    'buyer':'Allow view and purchase of products'
+})
 TokenDependecy = Annotated[str,Depends(oauth2_scheme)]
 
 DBSession = Annotated[AsyncSession,Depends(get_db)]

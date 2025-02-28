@@ -2,10 +2,12 @@ from pydantic import BaseModel,EmailStr,Field,BeforeValidator
 from app.utils.enums import PhoneStr
 from typing import Union,Optional,Annotated
 from app.utils.utils import hash_password
+from typing import List,Optional
 
 
 class TokenData(BaseModel):
-    username:Union[str,EmailStr,PhoneStr]
+    username:Optional[Union[str,EmailStr,PhoneStr]]
+    scopes:Optional[List[str]] = []
     
 class LoginData(BaseModel):
     username:Union[EmailStr,PhoneStr,str]

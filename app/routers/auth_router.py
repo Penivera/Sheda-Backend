@@ -48,11 +48,11 @@ async def resend_otp(payload:OtpSend):
 async def login_for_access_token(form_data: PassWordRequestForm,db:DBSession) -> Token:
     login_data = LoginData(**form_data.__dict__)
     user:UserShow = await authenticate_user(db, login_data)
-    #user = User(**user)
+    scope = user.account_type
     if not user:
         raise InvalidCredentialsException
     access_token = await create_access_token(
-        data={"sub": user.username}
+        data={"sub": user.username,"scopes": scope}
         )
     #user.access_token = Token(access_token=access_token)
     return Token(access_token=access_token)

@@ -6,6 +6,7 @@ from email_validator import validate_email,EmailNotValidError
 import re
 from core.configs import PHONE_REGEX,redis,BLACKLIST_PREFIX
 from app.schemas.auth_schema import LoginData,OtpSchema,Token
+from app.schemas.user_schema import UserInDB
 from app.utils.utils import verify_password
 from datetime import datetime,timezone,timedelta
 from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger
@@ -87,7 +88,7 @@ async def get_user(db:AsyncSession,identifier:str)->BaseUserSchema:
         return user
 
 async def authenticate_user(db:AsyncSession,login_data:LoginData):
-    user = await get_user(db,login_data.username)
+    user:UserInDB = await get_user(db,login_data.username)
     if not user:
         return False
     if not verify_password(login_data.password,user.password):
