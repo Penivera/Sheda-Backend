@@ -16,13 +16,13 @@ from app.utils.enums import PropertyStatEnum,PropertyTypeEnum
 class Property(Base):
     __tablename__ = 'property'
     id: Mapped[int]= mapped_column('id',primary_key=True,autoincrement=True)
-    user_id:Mapped[int]=mapped_column(ForeignKey('user.id'),nullable=False,)
+    user_id:Mapped[int]=mapped_column(ForeignKey('user.id',ondelete='CASCADE'),nullable=False,)
     title:Mapped[str]=mapped_column(String(100),nullable=False,)
     description:Mapped[str]=mapped_column(String,nullable=True,)
     price:Mapped[float]=mapped_column(Float,nullable=False,)
     is_negotiable:Mapped[bool]=mapped_column(Boolean,nullable=True,default=False)
     location:Mapped[str]=mapped_column(String(70),nullable=False,)
-    property_type:Mapped[PropertyTypeEnum]=mapped_column(Enum(PropertyTypeEnum),nullable=False)
+    property_type:Mapped[PropertyTypeEnum]=mapped_column(Enum(PropertyTypeEnum),nullable=False,default=PropertyTypeEnum.apartment)
     status:Mapped[PropertyStatEnum]= mapped_column(Enum(PropertyStatEnum),nullable=False,default=PropertyStatEnum.rent)
     furnished:Mapped[bool]=mapped_column(Boolean,default=False,)
     is_active:Mapped[bool] = mapped_column(Boolean,default= True,)
@@ -40,7 +40,7 @@ class Property(Base):
     
     #NOTE - Relationships
     seller = relationship('Seller', back_populates='listing')
-    images = relationship('PropertyImage',back_populates='property',cascade='all, delete-orphan')
+    images = relationship('PropertyImage',back_populates='property',cascade='all, delete-orphan',lazy='selectin')
     
     __table_args__ = (
         CheckConstraint(
@@ -52,15 +52,9 @@ class Property(Base):
 class PropertyImage(Base):
     __tablename__ = 'property_image'
     id:Mapped[int] = mapped_column('id',autoincrement=True,primary_key=True)
-    property_id:Mapped[int] = mapped_column(ForeignKey('property.id'),nullable=False)  
+    property_id:Mapped[int] = mapped_column(ForeignKey('property.id',ondelete='CASCADE'),nullable=False)  
     image_url: Mapped[str] = mapped_column(String(255),nullable=False,)
     is_primary:Mapped[bool] = mapped_column(Boolean,nullable=True,default=False)
     property = relationship('Property',back_populates='images')
-    
-    __table_args__ = (
-        CheckConstraint(
-            "is_primary IN (True,False)",
-            name="check_is_primary"
-        ),
-    )
+
       

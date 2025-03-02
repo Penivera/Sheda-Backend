@@ -1,11 +1,11 @@
 from pydantic import BaseModel,AnyUrl,Field
-from typing import List,Union,Annotated
+from typing import List,Union,Annotated,Optional
 from app.utils.enums import PropertyStatEnum,PropertyTypeEnum
 
 class PropertyImage(BaseModel):
     image_url:Annotated[Union[AnyUrl,str],Field(examples=['https://example/img/property.jpg'],max_length=255)]
-    is_primary:bool
-    class config:
+    is_primary:Optional[bool] = False
+    class Config:
         from_attributes = True
 
 class PropertyBase(BaseModel):
@@ -26,12 +26,15 @@ class PropertyBase(BaseModel):
     furniture:bool
     prepaid_meter:bool
     wifi:bool
-    images:List[PropertyImage]
     is_negotiable:bool
+    images:List[PropertyImage]
     
-    class config:
+    class Config:
         from_attributes = True
         
 class PropertyShow(PropertyBase):
     id:int
     user_id:int
+    
+    class Config:
+        from_attributes = True

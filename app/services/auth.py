@@ -12,13 +12,13 @@ from datetime import datetime,timezone,timedelta
 from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger
 import jwt
 from sqlalchemy.exc import IntegrityError
-from core.dependecies import VerificationException
+from core.dependecies import VerificationException,InvalidCredentialsException
 from app.schemas.user_schema import BaseUserSchema
 from app.utils.email import create_set_send_otp,send_otp_for_signup
 from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError
-
+from core.database import AsyncSessionLocal
 #NOTE - Create Buyer
 async def create_buyer(new_user:Buyer,db:AsyncSession):
     try:
@@ -48,8 +48,8 @@ async def create_seller(new_user:Seller,db:AsyncSession):
 
 
 class GetUser:
-    def __init__(self, db: AsyncSession, identifier: str):
-        self.db = db
+    def __init__(self, identifier: str):
+        #self.db = db
         self.identifier = identifier
 
     def __check_email(self) -> bool:
@@ -66,33 +66,35 @@ class GetUser:
 
     async def get_user(self):
         """Fetch a user based on email, phone, or username."""
-        query = select(BaseUser)
+        async with AsyncSessionLocal() as db:
+            query = select(BaseUser)
 
-        if self.__check_email():
-            query = query.where(BaseUser.email == self.identifier)
-        elif self.__validate_phone():
-            query = query.where(BaseUser.phone_number == self.identifier)
-        else:
-            query = query.where(BaseUser.username == self.identifier)
-
-        result = await self.db.execute(query)
-        new_user = result.scalar_one_or_none() 
-        if new_user:
-            await self.db.refresh(new_user)
-        return new_user
+            if self.__check_email():
+                query = query.where(BaseUser.email == self.identifier)
+            elif self.__validate_phone():
+                query = query.where(BaseUser.phone_number == self.identifier)
+            else:
+                query = query.where(BaseUser.username == self.identifier)
+            
+            result = await db.execute(query)
+            new_user = result.scalar_one_or_none() 
+            if new_user:
+                await db.commit()
+                await db.refresh(new_user)
+            return new_user
     
     
-async def get_user(db:AsyncSession,identifier:str)->BaseUserSchema:
-        user_fetcher = GetUser(db, identifier)
-        user = await user_fetcher.get_user()
-        return user
+async def get_user(identifier:str)->BaseUserSchema:
+    user_fetcher = GetUser(identifier)
+    user = await user_fetcher.get_user()
+    return user
 
-async def authenticate_user(db:AsyncSession,login_data:LoginData):
-    user:UserInDB = await get_user(db,login_data.username)
+async def authenticate_user(login_data:LoginData):
+    user:UserInDB = await get_user(login_data.username)
     if not user:
-        return False
+        raise InvalidCredentialsException
     if not verify_password(login_data.password,user.password):
-        return False
+        raise InvalidCredentialsException
     return user
 
 async def create_access_token(data:dict,expire_time=None):
