@@ -28,16 +28,23 @@ class BaseUser(Base):
     updated_at:Mapped[datetime]= mapped_column(DateTime,default=datetime.now,onupdate=datetime.now,)
     verified:Mapped[bool] = mapped_column(Boolean,default=False,)
     kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,nullable= True,)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
+    fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
 
     __mapper_args__ = {
         "polymorphic_identity": "user",
         "polymorphic_on": account_type,
     }
+    
     #NOTE -  Table constraint on manual level
     __table_args__ = (
         CheckConstraint(
             f"account_type IN {tuple(item.value for item in AccountTypeEnum)}",
             name="check_account_type"
+        ),
+        CheckConstraint(
+            f"kyc_status IN {tuple(item.value for item in KycStatusEnum)}",
+            name="check_kyc_status"
         ),
     )
     
@@ -45,8 +52,6 @@ class BaseUser(Base):
 class Buyer(BaseUser):
     __tablename__ = 'buyer'
     id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
-    fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
-    agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.buyer,
     }
@@ -55,8 +60,9 @@ class Buyer(BaseUser):
 class Seller(BaseUser):
     __tablename__ = 'seller'
     id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
-    fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
+    
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
+    rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
     listing = relationship('Property',back_populates='seller',cascade='all, delete-orphan',lazy='selectin')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.seller,

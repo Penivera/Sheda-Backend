@@ -44,7 +44,7 @@ class UserShow(BaseUserSchema):
     verified:bool
     location:str
     kyc_status: KycStatusEnum
-    listing:List[PropertyShow]
+    listing:Optional[List[PropertyShow]] = None
     class Config:
         from_attributes = True
     
@@ -68,3 +68,25 @@ class FileShow(BaseModel):
 
     
 FileDir = Literal['profile','property']
+
+class SellerFeed(BaseModel):
+    profile_pic: Union[AnyUrl,str] = None
+    username:str
+    email:EmailStr
+    phone_number:PhoneStr
+    agency_name:str
+    location:str
+    kyc_status:KycStatusEnum
+    last_seen: datetime
+    rating:float
+    listing:List[PropertyShow] = []
+    
+    class Config:
+        from_attributes = True
+        
+        
+class RatingShow(BaseModel):
+    rating:float
+    
+    class Config:
+        from_attributes = True

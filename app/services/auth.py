@@ -19,6 +19,7 @@ from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError
 from core.database import AsyncSessionLocal
+from datetime import datetime
 #NOTE - Create Buyer
 async def create_buyer(new_user:Buyer,db:AsyncSession):
     try:
@@ -77,11 +78,14 @@ class GetUser:
                 query = query.where(BaseUser.username == self.identifier)
             
             result = await db.execute(query)
-            new_user = result.scalar_one_or_none() 
-            if new_user:
+            user = result.scalar_one_or_none() 
+            if user:
+                user.last_seen = datetime.now()
                 await db.commit()
-                await db.refresh(new_user)
-            return new_user
+                await db.refresh(user)
+                return user
+                
+
     
     
 async def get_user(identifier:str)->BaseUserSchema:
