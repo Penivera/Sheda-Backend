@@ -44,14 +44,13 @@ async def resend_otp(payload:OtpSend):
 
 #NOTE - Login Route
 @router.post("/login",response_model=Token)
-async def login_for_access_token(form_data: PassWordRequestForm,db:DBSession) -> Token:
+async def login_for_access_token(form_data: PassWordRequestForm) -> Token:
     login_data = LoginData(**form_data.__dict__)
     user:UserShow = await authenticate_user(login_data)
     scopes = [user.account_type.value]
     access_token = await create_access_token(
         data={"sub": user.username,"scopes": scopes}
         )
-    #user.access_token = Token(access_token=access_token)
     return Token(access_token=access_token)
 
 
@@ -67,7 +66,7 @@ async def forgotten_pwd(payload:OtpSend):
 
 @router.post('/verify-otp',status_code=status.HTTP_202_ACCEPTED,response_model=Token,description=Reset_pass_desc)
 async def verify_otp(payload:OtpSchema,db:DBSession,):
-    verified = verify_request_otp(payload.email,payload.otp,db)
+    verified =  await verify_request_otp(payload.email,payload.otp,db)
     if verified:
         token = await create_access_token(data={'sub':payload.email},expire_time=5)
         return Token(access_token=token)

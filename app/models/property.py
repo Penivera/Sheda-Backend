@@ -39,13 +39,17 @@ class Property(Base):
     wifi:Mapped[bool]=mapped_column(Boolean,default=False,)
     
     #NOTE - Relationships
-    seller = relationship('Seller', back_populates='listing')
+    seller = relationship('Seller', back_populates='listing',lazy='selectin')
     images = relationship('PropertyImage',back_populates='property',cascade='all, delete-orphan',lazy='selectin')
     
     __table_args__ = (
         CheckConstraint(
-            f"property_type IN {tuple(item.value for item in PropertyStatEnum)}",
+            f"property_type IN {tuple(item.value for item in PropertyTypeEnum)}",
             name="check_property_type"
+        ),
+        CheckConstraint(
+            f"status IN {tuple(item.value for item in PropertyStatEnum)}",
+            name="check_status"
         ),
     )
     

@@ -39,8 +39,41 @@ class PropertyShow(PropertyBase):
     class Config:
         from_attributes = True
         
-class PropertyListResponse(BaseModel):
-    data:List[PropertyShow]
     
     class Config:
         from_attributes = True
+        
+class PropertyUpdate(BaseModel):
+    title:Optional[str] = None
+    description:Optional[str] = None
+    location:Optional[str] = None
+    price: Optional[float]= None
+    property_type:Optional[PropertyTypeEnum]= None
+    status:Optional[PropertyStatEnum] = None
+    furnished:Optional[bool] = None
+    is_active:Optional[bool] = None
+    bathroom:Optional[int] = None
+    bedroom:Optional[int] = None
+    air_condition:Optional[bool] = None
+    pop_ceiling:Optional[bool] = None
+    floor_tiles:Optional[bool] = None
+    running_water:Optional[bool] = None
+    furniture:Optional[bool] = None
+    prepaid_meter:Optional[bool] = None
+    wifi:Optional[bool] = None
+    is_negotiable:Optional[bool] = None
+    images:Optional[List[PropertyImage]] = None
+    
+    class Config:
+        from_attributes = True
+        
+class FilterParams(BaseModel):
+    limit: Annotated[int,Field(description='The amout of listings to fetch',ge=10,default=20)]
+    cursor:Annotated[int,Field(description='The Id of the last listing',ge=1,default=1)]
+
+class PropertyFeed(BaseModel):
+    data:List[PropertyShow]
+    next_coursor:int|None
+    
+class DeleteProperty(BaseModel):
+    message:str

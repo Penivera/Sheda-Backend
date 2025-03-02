@@ -53,14 +53,14 @@ async def get_current_active_user(current_user:GetUser):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
     return current_user
 
-GetCurrentActUSer = Annotated[UserShow,Depends(get_current_active_user)]
+ActiveUser = Annotated[UserShow,Depends(get_current_active_user)]
 
 async def get_current_active_seller(current_user:Annotated[UserShow, Security(get_current_user, scopes=["seller"])]):
     if not current_user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
     return current_user
 
-GetCurrentActSeller = Annotated[UserShow,Depends(get_current_active_seller)]
+ActiveSeller = Annotated[UserShow,Depends(get_current_active_seller)]
 
 
 
