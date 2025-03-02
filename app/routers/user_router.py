@@ -40,3 +40,5 @@ async def delete_account(current_user:GetCurrentActUSer,db:DBSession):
     await db.commit()
     await db.refresh(current_user)
     
+
+    

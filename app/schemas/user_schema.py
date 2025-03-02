@@ -16,7 +16,7 @@ from app.schemas.property_schema import PropertyShow
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
     profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
-    username:Annotated[Optional[str],Field(example='username',default='Admin',max_length=30)] = None
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])] = None
     phone_number:Optional[PhoneStr] = None
     account_type:Optional[AccountTypeEnum] = None

@@ -4,7 +4,7 @@ from fastapi import status,HTTPException
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
 import re
-from core.configs import PHONE_REGEX,redis,BLACKLIST_PREFIX
+from core.configs import PHONE_REGEX
 from app.schemas.auth_schema import LoginData,OtpSchema,Token
 from app.schemas.user_schema import UserInDB
 from app.utils.utils import verify_password
