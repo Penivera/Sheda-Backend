@@ -25,9 +25,10 @@ async def upload_file(type:FileDir,current_user:ActiveUser,file: UploadFile = Fi
 async def get_me(current_user:ActiveUser):
     return current_user
 
-
+update_desc='''pick the target field and exclude the rest,
+the server will dynamically update,all fields are optional'''
 #NOTE - Update User Profile
-@router.put('/update/me',response_model=UserUpdate,description='Update User Profile',status_code=status.HTTP_202_ACCEPTED)
+@router.put('/update/me',response_model=UserUpdate,description=update_desc,status_code=status.HTTP_202_ACCEPTED)
 async def update_me(current_user:ActiveUser,update_data:UserUpdate,db:DBSession):
     return await update_user(update_data,db,current_user)
 
