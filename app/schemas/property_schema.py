@@ -38,3 +38,9 @@ class PropertyShow(PropertyBase):
     
     class Config:
         from_attributes = True
+        
+class PropertyListResponse(BaseModel):
+    data:List[PropertyShow]
+    
+    class Config:
+        from_attributes = True
