@@ -11,8 +11,8 @@ env = Environment(loader=FileSystemLoader("app/templates"))
 
 class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
     def __init__(self,
-                 username:str = Form(description='Enter Phone,email,username',default='Penivera'),
-                 password:str=Form(description='Enter Your Password',default='test123!')):
+                 username:str = Form(description='Enter Phone,email,username',default='Admin'),
+                 password:str=Form(description='Enter Your Password',default='admin')):
         
         super().__init__(username=username,password=password)
 

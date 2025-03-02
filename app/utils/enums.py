@@ -32,8 +32,6 @@ class PropertyTypeEnum(str,Enum):
     land = 'land'
     
     
-class UploadDir(str,Enum):
-    signup = 'signup'
-    listing = 'listing'
+
     
 

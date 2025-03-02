@@ -7,7 +7,7 @@ from typing import List,Optional
 
 class TokenData(BaseModel):
     username:Optional[Union[str,EmailStr,PhoneStr]]
-    scopes:Optional[List[str]] = []
+    scopes:Optional[List[Union[str,None]]] = []
     
 class LoginData(BaseModel):
     username:Union[EmailStr,PhoneStr,str]

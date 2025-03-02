@@ -27,6 +27,7 @@ class BaseUser(Base):
     created_at: Mapped[datetime]= mapped_column(DateTime,default=datetime.now,)
     updated_at:Mapped[datetime]= mapped_column(DateTime,default=datetime.now,onupdate=datetime.now,)
     verified:Mapped[bool] = mapped_column(Boolean,default=False,)
+    kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,nullable= True,)
 
     __mapper_args__ = {
         "polymorphic_identity": "user",
@@ -46,7 +47,6 @@ class Buyer(BaseUser):
     id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
     fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
-    kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,)
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.buyer,
     }
@@ -57,8 +57,7 @@ class Seller(BaseUser):
     id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
     fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
-    kyc_status:Mapped[bool]=mapped_column(Boolean,default=False,)
-    listing = relationship('Property',back_populates='seller',cascade='all, delete-orphan')
+    listing = relationship('Property',back_populates='seller',cascade='all, delete-orphan',lazy='selectin')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.seller,
     }

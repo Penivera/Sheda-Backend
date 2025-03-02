@@ -3,13 +3,12 @@ from app.schemas.user_schema import BuyerCreate,UserShow,SellerCreate,BaseUserSc
 from app.services.auth import process_signup,process_accnt_verification,proccess_logout
 from app.services.auth import authenticate_user,create_access_token,process_send_otp,process_fgt_pwd,verify_request_otp
 from core.dependecies import PassWordRequestForm
-from core.dependecies import DBSession,InvalidCredentialsException,TokenDependecy
+from core.dependecies import DBSession,TokenDependecy
 from app.schemas.auth_schema import LoginData,Token,OtpSchema,OtpSend,PasswordReset
-from core.configs import SIGN_UP_DESC,Reset_pass_desc
+from core.configs import SIGN_UP_DESC,Reset_pass_desc,logger
 from app.services.user_service import get_current_user,reset_password
 from app.services.auth import create_access_token
 from app.utils.utils import blacklist_token,token_exp_time
-
 
 
 router = APIRouter(tags=['Auth'],prefix='/auth',)
@@ -47,12 +46,10 @@ async def resend_otp(payload:OtpSend):
 @router.post("/login",response_model=Token)
 async def login_for_access_token(form_data: PassWordRequestForm,db:DBSession) -> Token:
     login_data = LoginData(**form_data.__dict__)
-    user:UserShow = await authenticate_user(db, login_data)
-    scope = user.account_type
-    if not user:
-        raise InvalidCredentialsException
+    user:UserShow = await authenticate_user(login_data)
+    scopes = [user.account_type.value]
     access_token = await create_access_token(
-        data={"sub": user.username,"scopes": scope}
+        data={"sub": user.username,"scopes": scopes}
         )
     #user.access_token = Token(access_token=access_token)
     return Token(access_token=access_token)

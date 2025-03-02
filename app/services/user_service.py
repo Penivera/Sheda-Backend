@@ -27,13 +27,12 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
         logger.info(f'Identifier {identifier}')
         if not identifier:
             raise InvalidCredentialsException
-        token_data = TokenData(scopes=token_scopes,username=identifier)
     except InvalidTokenError:
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
-    async with AsyncSessionLocal() as db:
-        user = await get_user(db,token_data.username)
-        logger.info(f'User {user.username} fetched')
+    token_data = TokenData(scopes=token_scopes,username=identifier)
+    user = await get_user(token_data.username)
+    logger.info(f'User {user.username} fetched')
     if not user:
         logger.error('User not found')
         raise InvalidCredentialsException
