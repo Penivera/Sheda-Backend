@@ -24,7 +24,7 @@ async def list_property(current_user:ActiveSeller,payload:PropertyBase,db:DBSess
 async def get_my_listing(current_user:ActiveSeller,db:DBSession):
     return await get_user_properties(current_user,db)
 
-update_desc = '''pick your field of interest and ignore yhe rest, the server will dynamically update them'''
+update_desc = '''pick your field of interest and ignore the rest, the server will dynamically update them'''
 @router.put('/update/{property_id}',response_model=PropertyShow,
             status_code= status.HTTP_202_ACCEPTED, description=update_desc)
 async def edit_property_listing(property_id:int,update_data:PropertyUpdate,current_user:ActiveSeller,db:DBSession):
