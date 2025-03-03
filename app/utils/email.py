@@ -19,7 +19,7 @@ email_sender = EmailSender(
 async def create_set_send_otp(email:str,user_data:dict=None) -> int:
     otp= str(randint(1000,9999))
     await redis.setex(otp_prefix.format(email),VERIFICATION_CODE_EXP_MIN,otp)
-    logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)} minutes')
+    logger.info(f'otp saved to redis for {token_expiration} minutes')
     if user_data:
         await redis.hset(user_data_prefix.format(email),mapping=user_data)
         logger.info('User data set to redis')
@@ -44,10 +44,10 @@ async def send_otp_for_signup(email:str):
         if send_otp:
             logger.info('OTP Resent')
             return True
-    logger.error('OTP not found')
+    logger.warning('OTP not found')
     otp = str(randint(1000,9999))
     await redis.setex(otp_prefix.format(email),VERIFICATION_CODE_EXP_MIN,otp)
-    logger.info(f'otp saved to redis for {int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)}')
+    logger.info(f'otp saved to redis for {token_expiration} minutes')
     otp_text = render_template(env,TEMPLATES['otp'],otp=otp,expiry=token_expiration,support_email=EMAIL)
     send_otp = await email_sender.send_email(text=otp_text,to_email=email,subject='OTP for Verification',)
     if send_otp:
