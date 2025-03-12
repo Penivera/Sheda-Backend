@@ -52,7 +52,7 @@ class UserInDB(UserShow):
     
 class UserUpdate(BaseUserSchema):
     account_type:Optional[AccountTypeEnum] = None
-    Kyc_status:Optional[KycStatusEnum] = None
+    kyc_status:Optional[KycStatusEnum] = None
 
     class Config:
         from_attributes = True
