@@ -82,6 +82,7 @@ async def verify_otp_route(payload:OtpSchema):
     
 token_refresh_desc ='''This endpoint refreshes a user's token including the neccesary permissions for the account type,in case of <b>unauthorized</b> or <b>account type changes</b>
 The previous token will be `blacklisted`'''   
+
 @router.get('/refresh-token',response_model=Token,status_code=status.HTTP_200_OK,description=token_refresh_desc)
 async def refresh_token(current_user:ActiveUser,token:TokenDependecy):
     scopes = [current_user.account_type.value]

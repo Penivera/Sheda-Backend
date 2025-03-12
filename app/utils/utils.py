@@ -21,7 +21,7 @@ async def verify_otp(otp:str,email:str):
     if stored_otp and stored_otp.decode() == otp:
         logger.info(f'otp verified')
         await redis.delete(otp_prefix.format(email))
-        logger.info(f'{email} and OTP Data deleted from redis')
+        logger.info(f'{email} OTP Data deleted from redis')
         return True
     logger.error('OTP not found')
     return False
