@@ -8,7 +8,7 @@ from app.schemas.auth_schema import LoginData,Token,OtpSchema,OtpSend,PasswordRe
 from core.configs import SIGN_UP_DESC,logger
 from app.services.user_service import reset_password,OtpVerification,ActiveUser,GetUser
 from app.services.auth import create_access_token
-from app.utils.utils import verify_otp
+from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.email import create_send_otp
 
 
@@ -64,8 +64,12 @@ async def send_otp(payload:OtpSend):
         )
     return {'detail':'OTP sent'}
 
+verify_otp_desc = '''Token returned from this endpoint is valid for only `5 minutes`
+<h3><b>Once the OTP is verified the token is blacklisted</b></h3>
+<b><i>These tokens carry a scope that allows only actions that need OTP verification therefore cannot be used elsewhere</i></b>'''
+
 #NOTE - Verification Endpoint
-@router.post('/verify-otp',response_model=Token,status_code=status.HTTP_200_OK)
+@router.post('/verify-otp',response_model=Token,status_code=status.HTTP_200_OK,description=verify_otp_desc)
 async def verify_otp_route(payload:OtpSchema):
     verified = await verify_otp(**payload.model_dump())
     if not verified:
@@ -76,12 +80,15 @@ async def verify_otp_route(payload:OtpSchema):
         )
     return Token(access_token=access_token)
     
-    
-@router.get('/refresh-token',response_model=Token,status_code=status.HTTP_200_OK)
+token_refresh_desc ='''This endpoint refreshes a user's token including the neccesary permissions for the account type,in case of <b>unauthorized</b> or <b>account type changes</b>
+The previous token will be `blacklisted`'''   
+@router.get('/refresh-token',response_model=Token,status_code=status.HTTP_200_OK,description=token_refresh_desc)
 async def refresh_token(current_user:ActiveUser,token:TokenDependecy):
     scopes = [current_user.account_type.value]
-    token = await create_access_token(data={"sub": current_user.email,"scopes": scopes})
-    return Token(access_token=token)
+    token_exp = await token_exp_time(token)
+    await blacklist_token(token,token_exp)
+    new_token = await create_access_token(data={"sub": current_user.email,"scopes": scopes})
+    return Token(access_token=new_token)
 
 
     
