@@ -68,7 +68,7 @@ class PropertyUpdate(BaseModel):
         from_attributes = True
         
 class FilterParams(BaseModel):
-    limit: Annotated[int,Field(description='The amout of listings to fetch',ge=10,default=20)]
+    limit: Annotated[int,Field(description='The amount of listings to fetch',ge=10,default=20)]
     cursor:Annotated[int,Field(description='The Id of the last listing',ge=1,default=1)]
 
 class PropertyFeed(BaseModel):

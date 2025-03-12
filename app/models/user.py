@@ -22,7 +22,7 @@ class BaseUser(Base):
     phone_number:Mapped[str]=mapped_column(String(15),nullable=False,unique=True,index=True,)
     password:Mapped[str]=mapped_column(String,nullable=False,)
     location:Mapped[str]=mapped_column(String(70),nullable=True,)
-    account_type:Mapped[AccountTypeEnum]= mapped_column(Enum(AccountTypeEnum),nullable=False,default=AccountTypeEnum.buyer)
+    account_type:Mapped[AccountTypeEnum]= mapped_column(Enum(AccountTypeEnum),nullable=False,default=AccountTypeEnum.client)
     is_active:Mapped[bool] = mapped_column(Boolean,default= True,)
     created_at: Mapped[datetime]= mapped_column(DateTime,default=datetime.now,)
     updated_at:Mapped[datetime]= mapped_column(DateTime,default=datetime.now,onupdate=datetime.now,)
@@ -30,6 +30,7 @@ class BaseUser(Base):
     kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,nullable= True,)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
     fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
+    
 
     __mapper_args__ = {
         "polymorphic_identity": "user",
@@ -49,21 +50,23 @@ class BaseUser(Base):
     )
     
 #NOTE -  Buyer Model
-class Buyer(BaseUser):
-    __tablename__ = 'buyer'
-    id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
+class Client(BaseUser):
+    __tablename__ = 'client'
+    id: Mapped[int]= mapped_column(ForeignKey('user.id',ondelete='CASCADE'),primary_key=True,)
+    properties = relationship('Property',back_populates='client')
+    appointments=relationship('Appointment',back_populates='client',cascade='all, delete-orphan',lazy='selectin')
     __mapper_args__ = {
-        "polymorphic_identity": AccountTypeEnum.buyer,
+        "polymorphic_identity": AccountTypeEnum.client,
     }
    
-#NOTE -  Seller Model 
-class Seller(BaseUser):
-    __tablename__ = 'seller'
-    id: Mapped[int]= mapped_column(ForeignKey('user.id'),primary_key=True,)
+#NOTE -  agent Model 
+class Agent(BaseUser):
+    __tablename__ = 'agent'
+    id: Mapped[int]= mapped_column(ForeignKey('user.id',ondelete='CASCADE'),primary_key=True,)
     
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
     rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
-    listing = relationship('Property',back_populates='seller',cascade='all, delete-orphan',lazy='selectin')
+    listings = relationship('Property',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
     __mapper_args__ = {
-        "polymorphic_identity": AccountTypeEnum.seller,
+        "polymorphic_identity": AccountTypeEnum.agent,
     }

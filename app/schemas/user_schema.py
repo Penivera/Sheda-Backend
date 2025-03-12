@@ -19,25 +19,22 @@ class BaseUserSchema(BaseModel):
     username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])] = None
     phone_number:Optional[PhoneStr] = None
-    account_type:Optional[AccountTypeEnum] = None
+    account_type:Optional[AccountTypeEnum] = AccountTypeEnum.client
     fullname:Optional[str] = None
-    agency_name:Optional[str] = None
     location:Optional[str] = None
     
     class Config:
         from_attributes = True
         
-class BuyerCreate(BaseUserSchema):
+class UserCreate(BaseUserSchema):
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
-class SellerCreate(BaseUserSchema):
-    email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
-    account_type:Annotated[AccountTypeEnum,Field(examples=['seller'])]
-    password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
+
     
     
 class UserShow(BaseUserSchema):
+    agency_name:Annotated[Optional[str],Field(default=None)]
     is_active:bool
     created_at:datetime
     updated_at:datetime
@@ -54,6 +51,7 @@ class UserInDB(UserShow):
     password:str
     
 class UserUpdate(BaseUserSchema):
+    account_type:Optional[AccountTypeEnum] = None
     Kyc_status:Optional[KycStatusEnum] = None
 
     class Config:
@@ -69,7 +67,7 @@ class FileShow(BaseModel):
     
 FileDir = Literal['profile','property']
 
-class SellerFeed(BaseModel):
+class AgentFeed(BaseModel):
     profile_pic: Union[AnyUrl,str] = None
     username:str
     email:EmailStr

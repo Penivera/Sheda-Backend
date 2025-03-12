@@ -11,6 +11,8 @@ app.include_router(auth_router.router)
 app.include_router(user_router.router)
 app.include_router(listing_router.router)
 
+
+#STUB - Set in full production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

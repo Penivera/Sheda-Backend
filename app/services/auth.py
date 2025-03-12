@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.user import Buyer,Seller,BaseUser
+from app.models.user import BaseUser,Client,Agent
 from fastapi import status,HTTPException
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
@@ -9,32 +9,22 @@ from app.schemas.auth_schema import LoginData,OtpSchema,Token
 from app.schemas.user_schema import UserInDB
 from app.utils.utils import verify_password
 from datetime import datetime,timezone,timedelta
-from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger
+from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger,user_data_prefix,redis
 import jwt
 from sqlalchemy.exc import IntegrityError
-from core.dependecies import VerificationException,InvalidCredentialsException
+from core.dependecies import InvalidCredentialsException
 from app.schemas.user_schema import BaseUserSchema
-from app.utils.email import create_set_send_otp,send_otp_for_signup
-from app.utils.utils import verify_otp,blacklist_token,token_exp_time
+from app.utils.email import create_send_otp
+from app.utils.utils import blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError
 from core.database import AsyncSessionLocal
 from datetime import datetime
-#NOTE - Create Buyer
-async def create_buyer(new_user:Buyer,db:AsyncSession):
-    try:
-        db.add(new_user)
-        await db.commit()
-        await db.refresh(new_user)
-        logger.info(f'User {new_user.email} created')
-        return new_user  
-    except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='user already exists')
-    except Exception as e: 
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=str(e))
+from pydantic import EmailStr
 
-#NOTE -  Create Seller
-async def create_seller(new_user:Seller,db:AsyncSession):
+
+#NOTE -  Create agent
+async def create_account(new_user:BaseUser,db:AsyncSession):
     try:
         db.add(new_user)
         await db.commit()
@@ -111,44 +101,42 @@ async def create_access_token(data:dict,expire_time=None):
 
 async def process_signup(user_data:BaseUserSchema):
     #NOTE -  Process OTP
-    send_set_otp = await create_set_send_otp(user_data.email,user_data.model_dump())
-    if send_set_otp:
-        return user_data
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail= 'unable to send confirmation email'
-    )
-async def process_accnt_verification(payload:OtpSchema,db:AsyncSession):
-    user_data = await verify_otp(**payload.model_dump(),sign_up=True)
-    if not user_data:
-         raise VerificationException
-    account_type = user_data.get('account_type')
-    if account_type == AccountTypeEnum.buyer:
-        user = Buyer(**user_data)
-        user.verified=True
-        await create_buyer(user,db)
-        access_token = await create_access_token(
-        data={"sub": user.username}
-        )
-        logger.info(f'{user.email} Sucessfully verified and created')
-        return Token(access_token=access_token, token_type="Bearer")
+    await redis.hset(user_data_prefix.format(user_data.email),mapping=user_data.model_dump(exclude_none=True,exclude_unset=True))
     
-    user = Seller(**user_data)
-    user.verified = True
-    await create_seller(user,db)
-    access_token = await create_access_token(
-    data={"sub": user.username}
-    )
-    return Token(access_token=access_token, token_type="Bearer")
-
-async def process_send_otp(payload:OtpSchema):
-    send_otp = await send_otp_for_signup(payload.email)
-    if send_otp:
-        return {'message':'OTP Resent'}
-    raise HTTPException(
+    logger.info('User data set to redis')
+    await redis.expire(user_data_prefix.format(user_data.email),timedelta(hours=2))
+    
+    logger.info('timer set on user data 2 hours')
+    send_set_otp = await create_send_otp(user_data.email)
+    
+    if not send_set_otp:
+        raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail= 'unable to send confirmation email'
-    )
+        detail= 'unable to send confirmation email')
+        
+    return user_data
+    
+async def process_accnt_verification(key:EmailStr,db:AsyncSession):
+    user_data = await redis.hgetall(user_data_prefix.format(key))
+    user_data ={key.decode():value.decode() for key,value in user_data.items()}
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_205_RESET_CONTENT,
+            detail='User data not found or expired'
+        )
+    logger.info(f'{key} Data retrieved from redis')
+    await redis.delete(user_data_prefix.format(key))
+    
+    if user_data.get('account_type') == AccountTypeEnum.agent:
+        new_user = Agent(**user_data)
+    else:
+        new_user = Client(**user_data)
+    await create_account(new_user,db)
+    scopes = [new_user.account_type.value]
+    access_token = await create_access_token(
+        data={"sub": new_user.username,"scopes": scopes}
+        )
+    return Token(access_token=access_token, token_type="Bearer")
     
     
 async def proccess_logout(token:str):
@@ -163,23 +151,5 @@ async def proccess_logout(token:str):
     return {'message':'Logged out'}
 
 
-async def process_fgt_pwd(email:str):
-    user = await get_user(email)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='User not found')
-    send_set_otp = await create_set_send_otp(email)
-    if send_set_otp:
-        return {'message':'Password reset otp sent'}
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail= 'unable to send confirmation email'
-    )
 
-async def verify_request_otp(email:str,otp:str,db:AsyncSession):
-    user = await get_user(db,email)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='User not found')
-    verified = await verify_otp(email,otp)
-    if not verified:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Invalid OTP')
-    return True
+
