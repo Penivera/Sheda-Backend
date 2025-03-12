@@ -13,8 +13,8 @@ PhoneStr = Annotated[str,Field(
 )]
 
 class AccountTypeEnum(str,Enum):
-    buyer = 'buyer'
-    seller = 'seller'
+    client = 'client'
+    agent = 'agent'
     
 class KycStatusEnum(str,Enum):
     pending = 'pending'
@@ -30,6 +30,11 @@ class PropertyStatEnum(str,Enum):
 class PropertyTypeEnum(str,Enum):
     apartment = 'apartment'
     land = 'land'
+    
+class AppointmentStatEnum(str,Enum):
+    pending = "pending"
+    confirmed = "confirmed" 
+    canceled = "canceled"
     
     
 

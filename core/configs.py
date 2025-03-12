@@ -9,10 +9,10 @@ load_dotenv()
 
 class ColoredFormatter(logging.Formatter):
     COLORS = {
-        "DEBUG": "\033[94m",   # Blue
-        "INFO": "\033[92m",    # Green
-        "WARNING": "\033[93m", # Yellow
-        "ERROR": "\033[91m",   # Red
+        "DEBUG": "\033[94m",   #NOTE Blue
+        "INFO": "\033[92m",    #NOTE  Green 
+        "WARNING": "\033[93m", #NOTE Yellow
+        "ERROR": "\033[91m",   #NOTE Red
         "CRITICAL": "\033[1;91m", # Bold Red
     }
     RESET = "\033[0m"
@@ -38,8 +38,6 @@ logger.addHandler(handler)
 
 SIGN_UP_DESC ='''Once accounts are created they are stored temporarily for 2 hours before deletion if email verification is not completed
 '''
-Reset_pass_desc ='''
-Token returned from this endpoint will expire in 10 minutes if the new password is not set'''
 
 #NOTE - Regex for Phone
 PHONE_REGEX = r'^\+\d{10,15}$'
@@ -64,9 +62,11 @@ REDIS_URL = os.getenv('REDIS_URL')
 redis = aioredis.from_url(REDIS_URL)
 VERIFICATION_CODE_EXP_MIN = timedelta(minutes=int(os.getenv('VERIFICATION_CODE_EXP_MIN')))
 DB_URL = os.getenv('DB_URL')
+
+
 #NOTE - Redis variables
 BLACKLIST_PREFIX = 'blacklist:{}'
-user_data_prefix='user_data:{}'
+user_data_prefix='user_data:{}' 
 otp_prefix = 'otp:{}'
 
 
