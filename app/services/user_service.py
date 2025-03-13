@@ -64,6 +64,10 @@ async def get_current_active_agent(current_user:Annotated[UserShow, Security(get
 ActiveAgent = Annotated[UserShow,Depends(get_current_active_agent)]
 
 async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDependecy):
+    is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
+    logger.info(f'Blacklisted {bool(is_blacklisted)}')
+    if is_blacklisted:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
     if security_scopes.scopes:
         authenticate_value = f'Bearer scope="{security_scopes.scope_str}"'
     else:
