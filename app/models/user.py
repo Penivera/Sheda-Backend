@@ -72,7 +72,7 @@ class Agent(BaseUser):
     rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
     listings = relationship('Property',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
     appointments=relationship('Appointment',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
-    availabilities = relationship("Agent", back_populates="availabilities",cascade='all delete-orphan')
+    availabilities = relationship("Agent", back_populates="agent",cascade='all, delete-orphan')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }

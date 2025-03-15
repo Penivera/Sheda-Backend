@@ -49,7 +49,7 @@ async def delete_account(current_user:ActiveUser,db:DBSession):
     
 
 #NOTE Get agent availability
-@router.get("/book-appointment",response_model=status.HTTP_200_OK,response_model= AppointmentShow)
+@router.get("/book-appointment",status_code=status.HTTP_200_OK,response_model= AppointmentShow)
 async def book_appointment(current_user:ActiveClient,payload:AppointmentSchema,db:DBSession):
     return await book_appointment(current_user.id,payload.agent_id,payload.requested_time,db)
 
