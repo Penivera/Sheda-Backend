@@ -3,15 +3,12 @@ from pydantic import (BaseModel,
                       AfterValidator,
                       EmailStr,
                       Field,AnyUrl)
-from typing import Optional,Annotated
 from  app.utils.enums import PhoneStr,AccountTypeEnum
 from app.utils.utils import hash_password,decode_url
-from typing import Optional
-from typing import Annotated
 from datetime import datetime
 from app.utils.enums import KycStatusEnum
-from typing import Union,Literal,List
-from app.schemas.property_schema import PropertyShow
+from typing import Union,Literal,List,Optional,Annotated
+from app.schemas.property_schema import PropertyShow,AvailabilityShow
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
@@ -25,8 +22,10 @@ class BaseUserSchema(BaseModel):
     
     class Config:
         from_attributes = True
-        
-class UserCreate(BaseUserSchema):
+
+
+class UserCreate(BaseModel):
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
@@ -39,7 +38,7 @@ class UserShow(BaseUserSchema):
     created_at:datetime
     updated_at:datetime
     verified:bool
-    location:str
+    location:Optional[str]
     kyc_status: KycStatusEnum
     listing:Optional[List[PropertyShow]] = None
     class Config:
@@ -51,6 +50,12 @@ class UserInDB(UserShow):
     password:str
     
 class UserUpdate(BaseUserSchema):
+    profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
+    email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])] = None
+    phone_number:Optional[PhoneStr] = None
+    fullname:Optional[str] = None
+    location:Optional[str] = None
     account_type:Optional[AccountTypeEnum] = None
     kyc_status:Optional[KycStatusEnum] = None
 
@@ -78,6 +83,7 @@ class AgentFeed(BaseModel):
     last_seen: datetime
     rating:float
     listing:List[PropertyShow] = []
+    availbilities:List[AvailabilityShow] = []
     
     class Config:
         from_attributes = True
@@ -88,3 +94,4 @@ class RatingShow(BaseModel):
     
     class Config:
         from_attributes = True
+

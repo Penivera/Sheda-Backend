@@ -15,7 +15,7 @@ from app.utils.utils import blacklist_token,token_exp_time
 
 async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
     is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
-    logger.info(f'Blacklisted {bool(is_blacklisted)}')
+    logger.info(f'Blacklisted: {bool(is_blacklisted)}')
     if is_blacklisted:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
     if security_scopes.scopes:
@@ -31,8 +31,16 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
     except InvalidTokenError:
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
+    
+    #NOTE ensure that OTP tokens are not used in this route
+    if 'otp' in token_scopes:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="OTP token not permitted in this route",
+                headers={"WWW-Authenticate": authenticate_value},
+            )
     token_data = TokenData(scopes=token_scopes,username=identifier)
-    user = await get_user(token_data.username)
+    user = await get_user(token_data.username,token_scopes[0])
     logger.info(f'User {user.username} fetched')
     if not user:
         logger.error('User not found')
@@ -54,14 +62,21 @@ async def get_current_active_user(current_user:GetUser):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
     return current_user
 
-ActiveUser = Annotated[UserShow,Depends(get_current_active_user)]
+ActiveUser = Annotated[UserInDB,Depends(get_current_active_user)]
 
 async def get_current_active_agent(current_user:Annotated[UserShow, Security(get_current_user, scopes=["agent"])]):
     if not current_user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
     return current_user
 
-ActiveAgent = Annotated[UserShow,Depends(get_current_active_agent)]
+ActiveAgent = Annotated[UserInDB,Depends(get_current_active_agent)]
+
+async def active_client(current_user:Annotated[UserShow, Security(get_current_user, scopes=["client"])]):
+    if not current_user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
+    return current_user
+
+ActiveClient = Annotated[UserInDB,Depends(active_client)]
 
 async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDependecy):
     is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))

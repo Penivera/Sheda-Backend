@@ -6,6 +6,7 @@ from sqlalchemy import (String,
                         DateTime,
                         ForeignKey,
                         CheckConstraint,
+                        UniqueConstraint,
                         JSON)
 from sqlalchemy.orm import mapped_column,Mapped,relationship
 from datetime import datetime
@@ -16,10 +17,10 @@ from typing import Optional
 class BaseUser(Base):
     __tablename__ = 'user'
     id: Mapped[int]= mapped_column('id',primary_key=True,autoincrement=True)
-    username:Mapped[str]=mapped_column(String(30),nullable=True,index=True)
+    username:Mapped[str]=mapped_column(String(30),nullable=True,index=True,)
     profile_pic:Mapped[str] = mapped_column(String(255),nullable=True,)
-    email :Mapped[str]= mapped_column(String,unique=True,nullable=False,)
-    phone_number:Mapped[str]=mapped_column(String(15),nullable=False,unique=True,index=True,)
+    email :Mapped[str]= mapped_column(String,nullable=False,)
+    phone_number:Mapped[str]=mapped_column(String(15),nullable=True,index=True,)
     password:Mapped[str]=mapped_column(String,nullable=False,)
     location:Mapped[str]=mapped_column(String(70),nullable=True,)
     account_type:Mapped[AccountTypeEnum]= mapped_column(Enum(AccountTypeEnum),nullable=False,default=AccountTypeEnum.client)
@@ -29,16 +30,17 @@ class BaseUser(Base):
     verified:Mapped[bool] = mapped_column(Boolean,default=False,)
     kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,nullable= True,)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
-    fullname:Mapped[str]=mapped_column(String(50),nullable=False,)
+    fullname:Mapped[str]=mapped_column(String(50),nullable=True,)
     
 
     __mapper_args__ = {
         "polymorphic_identity": "user",
         "polymorphic_on": account_type,
     }
-    
-    #NOTE -  Table constraint on manual level
     __table_args__ = (
+        UniqueConstraint("email", "account_type", name="uq_email_type"),
+        UniqueConstraint("username", "account_type", name="uq_username_type"),
+        
         CheckConstraint(
             f"account_type IN {tuple(item.value for item in AccountTypeEnum)}",
             name="check_account_type"
@@ -47,7 +49,9 @@ class BaseUser(Base):
             f"kyc_status IN {tuple(item.value for item in KycStatusEnum)}",
             name="check_kyc_status"
         ),
-    )
+                      )
+
+    
     
 #NOTE -  Buyer Model
 class Client(BaseUser):
@@ -67,6 +71,8 @@ class Agent(BaseUser):
     agency_name:Mapped[Optional[str]]=mapped_column(String(50),nullable=True,)
     rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
     listings = relationship('Property',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
+    appointments=relationship('Appointment',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
+    availabilities = relationship("Agent", back_populates="availabilities",cascade='all delete-orphan')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }

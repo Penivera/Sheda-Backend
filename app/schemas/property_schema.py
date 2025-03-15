@@ -1,6 +1,8 @@
 from pydantic import BaseModel,AnyUrl,Field
 from typing import List,Union,Annotated,Optional
 from app.utils.enums import PropertyStatEnum,PropertyTypeEnum
+from datetime import datetime,time
+from app.utils.enums import AppointmentStatEnum
 
 class PropertyImage(BaseModel):
     image_url:Annotated[Union[AnyUrl,str],Field(examples=['https://example/img/property.jpg'],max_length=255)]
@@ -77,3 +79,30 @@ class PropertyFeed(BaseModel):
     
 class DeleteProperty(BaseModel):
     message:str
+
+
+class AgentAvailabilitySchema(BaseModel):
+    weekday:Annotated[str ,Field(..., example="MONDAY")]  # Store as uppercase string
+    start_time: Annotated[time, Field(..., example="09:00",description='HH:MM format')]  # HH:MM format
+    end_time: Annotated[time,Field(..., example="17:00")]
+    
+class AppointmentSchema(BaseModel):
+    agent_id:int
+    property_id:int
+    requested_time:datetime
+    
+class AvailabilityShow(AgentAvailabilitySchema):
+    id:int
+    agent_id:int
+    is_booked:bool
+
+class AppointmentShow(BaseModel):
+    id:int
+    client_id:int
+    agent_id:int
+    property_id:int
+    scheduled_at:datetime
+    status:AppointmentStatEnum
+    created_at:datetime
+    updated_at:datetime
+    

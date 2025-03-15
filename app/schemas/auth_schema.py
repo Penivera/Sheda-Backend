@@ -1,9 +1,8 @@
 from pydantic import BaseModel,EmailStr,Field,BeforeValidator
-from app.utils.enums import PhoneStr
+from app.utils.enums import PhoneStr,AccountTypeEnum
 from typing import Union,Optional,Annotated
 from app.utils.utils import hash_password
 from typing import List,Optional
-
 
 class TokenData(BaseModel):
     username:Optional[Union[str,EmailStr,PhoneStr]]
@@ -33,3 +32,6 @@ class PasswordReset(BaseModel):
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
         
+
+class SwitchAccountType(BaseModel):
+    switch_to:Annotated[AccountTypeEnum,Field(default=AccountTypeEnum.agent)]

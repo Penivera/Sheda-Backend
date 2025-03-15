@@ -4,7 +4,7 @@ from core.configs import Media_dir
 from fastapi import UploadFile,HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.user_schema import BaseUserSchema,UserUpdate,UserInDB,FileDir,RatingShow
-from app.models.user import Agent
+from app.models.user import Agent,BaseUser
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 
@@ -33,7 +33,7 @@ async def update_user(update_data:UserUpdate,db:AsyncSession,user:UserInDB):
 
 
 async def updated_rating(agent_id:int,update_rating:int,db:AsyncSession):
-    query = select(agent).where(agent.id==agent_id)
+    query = select(Agent).where(Agent.id==agent_id)
     result:Result = await db.execute(query)
     agent:Agent = result.scalar_one_or_none()
     if not agent:

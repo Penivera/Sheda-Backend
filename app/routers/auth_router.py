@@ -1,13 +1,22 @@
 from fastapi import APIRouter,status,HTTPException
 from app.schemas.user_schema import UserCreate,UserShow,BaseUserSchema
 from app.services.auth import process_signup,process_accnt_verification,proccess_logout
-from app.services.auth import authenticate_user,create_access_token
+from app.services.auth import (
+    authenticate_user,
+    create_access_token,
+    create_access_token,
+    switch_account
+    )
 from core.dependecies import PassWordRequestForm,VerificationException
 from core.dependecies import DBSession,TokenDependecy
-from app.schemas.auth_schema import LoginData,Token,OtpSchema,OtpSend,PasswordReset
+from app.schemas.auth_schema import (LoginData,
+                                     Token,
+                                     OtpSchema,
+                                     OtpSend,
+                                     PasswordReset,
+                                     SwitchAccountType)
 from core.configs import SIGN_UP_DESC,logger
 from app.services.user_service import reset_password,OtpVerification,ActiveUser,GetUser
-from app.services.auth import create_access_token
 from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.email import create_send_otp
 
@@ -18,13 +27,13 @@ router = APIRouter(tags=['Auth'],prefix='/auth',)
              response_model=BaseUserSchema,
              status_code=status.HTTP_202_ACCEPTED,
              description=SIGN_UP_DESC)
-async def signup_client(request:UserCreate):
+async def signup_user(request:UserCreate):
     #NOTE - Process signup
     return await process_signup(request)
 
 @router.post('/verify-account',response_model=Token,status_code=status.HTTP_201_CREATED)
-async def verify_account(key:OtpVerification,db:DBSession):
-    return await process_accnt_verification(key,db)
+async def verify_account(email:OtpVerification,db:DBSession):
+    return await process_accnt_verification(email,db)
 
 #NOTE - Login Route
 @router.post("/login",response_model=Token)
@@ -92,6 +101,14 @@ async def refresh_token(current_user:ActiveUser,token:TokenDependecy):
     return Token(access_token=new_token)
 
 
+#STUB - Switch account type
+@router.post('/switch-account',status_code=status.HTTP_200_OK,response_model=Token)
+async def switch_account_type(token:TokenDependecy,payload:SwitchAccountType,current_user:ActiveUser):
+   
+    new_token = await switch_account(payload.switch_to,current_user)
+    exp_time = await token_exp_time(token)
+    await blacklist_token(token,exp_time)
+    return new_token
     
 
 
