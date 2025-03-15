@@ -1,13 +1,15 @@
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from app.models.property import Property,PropertyImage
-from app.schemas.user_schema import UserInDB
-from app.models.property import Property
+from app.schemas.user_schema import UserInDB,AgentFeed
+from app.models.property import Property,Appointment,AgentAvailability
 from app.models.user import BaseUser
 from app.schemas.property_schema import PropertyBase,PropertyUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException,status
-from app.schemas.property_schema import FilterParams,PropertyFeed,DeleteProperty
+from app.schemas.property_schema import FilterParams,PropertyFeed,DeleteProperty,AgentAvailabilitySchema
+from datetime import datetime
+from app.utils.enums import AppointmentStatEnum
 
 async def create_property_listing(current_user:UserInDB,property_data:PropertyBase,db:AsyncSession):
     new_property = Property(user_id=current_user.id,**property_data.model_dump(exclude={'images'}))
@@ -80,5 +82,64 @@ async def delist_property(property_id:int,db:AsyncSession,current_user:UserInDB)
     return DeleteProperty(message='Property Deleted')
     
     
+async def book_appointment(client_id: int, agent_id: int, property_id: int, requested_time: datetime, db:AsyncSession):
+    requested_weekday = requested_time.strftime('%A').upper()
+    requested_time_only = requested_time.time()
     
+    #NOTE Check if the requested time matches an available slot
+    available_slot:Result = await db.execute(
+        select(AgentAvailability).where(
+            AgentAvailability.agent_id == agent_id,
+            AgentAvailability.weekday == requested_weekday,
+            AgentAvailability.start_time <= requested_time_only,
+            AgentAvailability.end_time >= requested_time_only,
+            AgentAvailability.is_booked == False
+        )
+    )
+    available_slot = available_slot.scalars().first()
+    
+    if available_slot:
+        available_slot.is_booked = True
+        scheduled_time = requested_time
+    else:
+        # No available slot, negotiation required
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail = "Requested time is unavailable. Please negotiate a new time."
+        )
+    
+    appointment = Appointment(
+        client_id=client_id,
+        agent_id=agent_id,
+        property_id=property_id,
+        scheduled_at=scheduled_time
+    )
+    
+    db.add(appointment)
+    await db.commit()
+    await db.refresh(appointment)
+    return appointment
+
+async def create_availability(data:AgentAvailabilitySchema,db:AsyncSession,current_user:UserInDB):
+    new_schedule = AgentAvailability(agent_id = current_user.id,**data.model_dump())
+    db.add(new_schedule)
+    await db.commit()
+    await db.refresh(new_schedule)
+    return new_schedule
+
+    
+async def fetch_schedule(agent_id:int,db:AsyncSession):
+    query = select(AgentAvailability).where(AgentAvailability.agent_id ==agent_id)
+    result:Result = await db.execute(query)
+    schedule = result.scalars().all()
+    return result or []
+
+async def update_agent_availabilty(update:AgentAvailabilitySchema,db:AsyncSession,schedule_id:int,current_user:AgentFeed):
+    schedule = current_user.availbilities
+    for key,value in update.model_dump(exclude_unset=True):
+        setattr(schedule,key,value)
+    db.add(schedule)
+    await db.commit()
+    await db.refresh(schedule)
+    return schedule
     

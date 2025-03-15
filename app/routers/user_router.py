@@ -1,10 +1,15 @@
-from fastapi import APIRouter,UploadFile,File,HTTPException,status,Query
-from app.services.user_service import ActiveUser
-from app.services.profile import upload_image,update_user,updated_rating
+from fastapi import APIRouter,UploadFile,File,HTTPException,status
+from app.services.user_service import ActiveUser,ActiveClient,ActiveAgent
+from app.services.profile import upload_image,update_user
 from core.dependecies import FileUploadException,DBSession
 from app.schemas.user_schema import UserShow,UserUpdate,FileShow,FileDir
-from typing import Annotated
-
+from typing import Annotated,List
+from sqlalchemy.engine import Result
+from app.schemas.property_schema import (AppointmentSchema,
+                                         AppointmentShow,
+                                         AvailabilityShow,
+                                         AgentAvailabilitySchema)
+from app.services.listing import book_appointment,create_availability,fetch_schedule,update_agent_availabilty
 
 
 
@@ -42,8 +47,21 @@ async def delete_account(current_user:ActiveUser,db:DBSession):
     await db.commit()
     await db.refresh(current_user)
     
-#NOTE - Work on ratings
-    
-    
 
-    
+#NOTE Get agent availability
+@router.get("/book-appointment",response_model=status.HTTP_200_OK,response_model= AppointmentShow)
+async def book_appointment(current_user:ActiveClient,payload:AppointmentSchema,db:DBSession):
+    return await book_appointment(current_user.id,payload.agent_id,payload.requested_time,db)
+
+#NOTE create availability
+@router.post('/create-available-time',status_code=status.HTTP_201_CREATED,response_model=AvailabilityShow)
+async def create_schedule(request:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
+    return await create_availability(request,db,current_user)
+
+@router.get('/get-schedule/me',status_code=status.HTTP_200_OK,response_model=List[AvailabilityShow])
+async def get_schedule(current_user:ActiveAgent,db:DBSession):
+    return await fetch_schedule(current_user.id,db)
+
+@router.put('/update-schedule/{id}',response_model=AvailabilityShow,status_code=status.HTTP_200_OK)
+async def update_schedule(id:int,update_data:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
+    return await update_agent_availabilty(update_data,db,id)

@@ -7,10 +7,11 @@ from sqlalchemy import (String,
                         ForeignKey,
                         CheckConstraint,
                         Integer,
+                        Time
                         )
 from sqlalchemy.orm import mapped_column,Mapped,relationship
-from datetime import datetime
-from app.utils.enums import PropertyStatEnum,PropertyTypeEnum,AppointmentStatEnum
+from datetime import datetime,time
+from app.utils.enums import PropertyStatEnum,PropertyTypeEnum,AppointmentStatEnum,WeekDayEnum
 
 
 class Property(Base):
@@ -74,6 +75,22 @@ class Appointment(Base):
     created_at:Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at:Mapped[datetime] = mapped_column(DateTime,default = datetime.now,onupdate=datetime.now)
     client = relationship("Client", back_populates="appointments")
+    agent = relationship("Agent", back_populates="appointments")
+    
 
+#NOTE Agent Availability Model
+class AgentAvailability(Base):
+    __tablename__ = "agent_availability"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agent.id", ondelete="CASCADE"), nullable=False)
+    weekday:Mapped[WeekDayEnum] = mapped_column(Enum(WeekDayEnum),nullable=False)
+    start_time:Mapped[time] = mapped_column(Time,nullable=False)
+    end_time:Mapped[time] = mapped_column(Time,nullable=False)
+    is_booked: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    agent = relationship("Agent", back_populates="availabilities")
+
+    
 
       

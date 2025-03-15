@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 from jinja2 import Environment, FileSystemLoader
 from fastapi.security import OAuth2PasswordBearer
+from app.utils.enums import AccountTypeEnum
 
 env = Environment(loader=FileSystemLoader("app/templates"))
 
@@ -16,9 +17,9 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         
         super().__init__(username=username,password=password)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login',scopes={
-    'agent':'Allow creating and managing products',
-    'client':'Allow view and purchase of products',
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='api/auth/login',scopes={
+    AccountTypeEnum.agent.value:'Allow creating and managing products',
+    AccountTypeEnum.client.value:'Allow view and purchase of products',
     'otp':'Temporary access for OTP verification'
 })
 TokenDependecy = Annotated[str,Depends(oauth2_scheme)]

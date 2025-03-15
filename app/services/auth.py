@@ -13,7 +13,7 @@ from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger,user_data_pre
 import jwt
 from sqlalchemy.exc import IntegrityError
 from core.dependecies import InvalidCredentialsException
-from app.schemas.user_schema import BaseUserSchema
+from app.schemas.user_schema import BaseUserSchema,UserCreate
 from app.utils.email import create_send_otp
 from app.utils.utils import blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
@@ -21,6 +21,7 @@ from jwt.exceptions import InvalidTokenError
 from core.database import AsyncSessionLocal
 from datetime import datetime
 from pydantic import EmailStr
+import uuid
 
 
 #NOTE -  Create agent
@@ -55,17 +56,25 @@ class GetUser:
         """Check if the identifier is a valid phone number."""
         return bool(re.fullmatch(PHONE_REGEX, self.identifier))
 
-    async def get_user(self):
-        """Fetch a user based on email, phone, or username."""
+    async def get_user(self,account_type):
+        """Fetch a user based on email, phone, or username and account type."""
         async with AsyncSessionLocal() as db:
             query = select(BaseUser)
 
             if self.__check_email():
-                query = query.where(BaseUser.email == self.identifier)
+                query = query.where(
+                    BaseUser.email == self.identifier,
+                    BaseUser.account_type == account_type
+                    )
             elif self.__validate_phone():
-                query = query.where(BaseUser.phone_number == self.identifier)
+                query = query.where(
+                    BaseUser.phone_number == self.identifier,
+                    BaseUser.account_type == account_type
+                    )
             else:
-                query = query.where(BaseUser.username == self.identifier)
+                query = query.where(
+                    BaseUser.username == self.identifier,
+                    BaseUser.account_type == account_type)
             
             result = await db.execute(query)
             user = result.scalar_one_or_none() 
@@ -74,13 +83,18 @@ class GetUser:
                 await db.commit()
                 await db.refresh(user)
                 return user
+        logger.info('User not found')
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail='User not found'
+        )
                 
 
     
     
-async def get_user(identifier:str)->BaseUserSchema:
+async def get_user(identifier:str,account_type:AccountTypeEnum=AccountTypeEnum.client)->BaseUserSchema:
     user_fetcher = GetUser(identifier)
-    user = await user_fetcher.get_user()
+    user = await user_fetcher.get_user(account_type)
     return user
 
 async def authenticate_user(login_data:LoginData):
@@ -116,25 +130,33 @@ async def process_signup(user_data:BaseUserSchema):
         
     return user_data
     
-async def process_accnt_verification(key:EmailStr,db:AsyncSession):
-    user_data = await redis.hgetall(user_data_prefix.format(key))
+async def process_accnt_verification(email:EmailStr,db:AsyncSession):
+    user_data = await redis.hgetall(user_data_prefix.format(email))
     user_data ={key.decode():value.decode() for key,value in user_data.items()}
     if not user_data:
         raise HTTPException(
             status_code=status.HTTP_205_RESET_CONTENT,
             detail='User data not found or expired'
         )
-    logger.info(f'{key} Data retrieved from redis')
-    await redis.delete(user_data_prefix.format(key))
+    username = f'{email.split('@')[0]}_{uuid.uuid4().hex[:8]}'
+    username = user_data.get('username',username)
+    logger.info(f'{email}\'s Data retrieved from redis')
+    await redis.delete(user_data_prefix.format(email))
     
-    if user_data.get('account_type') == AccountTypeEnum.agent:
-        new_user = Agent(**user_data)
-    else:
-        new_user = Client(**user_data)
-    await create_account(new_user,db)
-    scopes = [new_user.account_type.value]
+    #NOTE - create Client
+    new_client = Client(**user_data,account_type=AccountTypeEnum.client,username=username)
+    await create_account(new_client,db)
+    new_user = await create_account(new_client,db)
+    logger.info(f'{new_user.email} Account created Succesfully as {new_user.account_type}')
+    # #NOTE Create Agent
+    new_agent = Agent(**user_data,account_type=AccountTypeEnum.agent,username=username)
+    new_user = await create_account(new_agent,db)
+    logger.info(f'{new_user.email} Account created Succesfully as {new_user.account_type}')
+    
+    
+    scopes = [new_agent.account_type.value]
     access_token = await create_access_token(
-        data={"sub": new_user.username,"scopes": scopes}
+        data={"sub": new_agent.username,"scopes": scopes}
         )
     return Token(access_token=access_token, token_type="Bearer")
     
@@ -150,6 +172,17 @@ async def proccess_logout(token:str):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
     return {'message':'Logged out'}
 
+#NOTE -  Return new token with the neccesarry account type
+async def switch_account(switch_to:AccountTypeEnum,current_user:UserInDB):
+    user = await get_user(current_user.email,switch_to)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = f'{switch_to} account not found'
+        )
+    scopes = [switch_to]
+    new_token = await create_access_token(data={"sub": current_user.email,"scopes": scopes})
+    return Token(access_token=new_token)
 
 
 
