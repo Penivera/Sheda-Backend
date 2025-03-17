@@ -51,8 +51,11 @@ class Property(Base):
             name="check_property_type"
         ),
         CheckConstraint(
-            f"status IN {tuple(item.value for item in ListingTypeEnum)}",
+            f"status IN {tuple(item.value for item in PropertyStatEnum)}",
             name="check_status"
+        ),CheckConstraint(
+            f"listing_type IN {tuple(item.value for item in ListingTypeEnum)}",
+            name="check_listing"
         ),
     )
     

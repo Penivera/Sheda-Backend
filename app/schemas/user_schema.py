@@ -70,8 +70,8 @@ class UserUpdate(BaseUserSchema):
     phone_number:Optional[PhoneStr] = None
     fullname:Optional[str] = None
     location:Optional[str] = None
-    account_type:Optional[AccountTypeEnum] = None
     kyc_status:Optional[KycStatusEnum] = None
+    rating:Optional[float] = None
 
     class Config:
         from_attributes = True

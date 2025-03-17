@@ -14,7 +14,7 @@ from app.schemas.property_schema import (
     ContractCreate,
     )
 from app.services.listing import (
-    book_appointment,
+    run_book_appointment,
     create_availability,
     fetch_schedule,
     update_agent_availabilty,
@@ -63,7 +63,12 @@ async def delete_account(current_user:ActiveUser,db:DBSession):
 #NOTE Get agent availability
 @router.get("/book-appointment",status_code=status.HTTP_200_OK,response_model= AppointmentShow)
 async def book_appointment(current_user:ActiveClient,payload:AppointmentSchema,db:DBSession):
-    return await book_appointment(current_user.id,payload.agent_id,payload.requested_time,db)
+    return await run_book_appointment(
+        client_id=current_user.id,
+        agent_id=payload.agent_id,
+        property_id = payload.property_id,
+        requested_time = payload.requested_time,
+        db=db)
 
 #NOTE Cancel Appointment
 @router.delete('/cancel-appointment/{appointment_id}',status_code= status.HTTP_200_OK,response_model=dict)
