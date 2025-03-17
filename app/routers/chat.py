@@ -7,7 +7,8 @@ from app.services.user_service import ActiveUser
 from typing import List
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
-router = APIRouter()
+
+router = APIRouter(prefix='/chat',tags=['Chat'],)
 
 # Store active connections
 active_connections: Dict[int, WebSocket] = {}
