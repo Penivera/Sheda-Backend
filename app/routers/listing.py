@@ -1,18 +1,25 @@
 from fastapi import APIRouter,UploadFile,File,HTTPException,status
 from core.dependecies import FileUploadException,DBSession
-from app.schemas.property_schema import PropertyBase,PropertyShow,PropertyUpdate,FilterParams,PropertyFeed,DeleteProperty
+from app.schemas.property_schema import (
+    PropertyBase,
+    PropertyShow,
+    PropertyUpdate,
+    FilterParams,
+    PropertyFeed,
+    DeleteProperty)
 from app.services.listing import (create_property_listing,
                                   get_user_properties,
                                   update_listing,
                                   filtered_property,
                                   get_agent_by_id,
-                                  delist_property
+                                  delist_property,
                                   )
 from app.services.user_service import ActiveAgent,ActiveUser
 from app.schemas.user_schema import AgentFeed
 from typing import List,Annotated
 from pydantic import Field
 from fastapi import Query
+
 
 
 router = APIRouter(prefix='/property',tags=['Property'],)
@@ -46,4 +53,6 @@ async def agent_profile(agent_id:int,current_user:ActiveUser,db:DBSession):
 @router.delete('/delete/{property_id}',status_code=status.HTTP_202_ACCEPTED,response_model = DeleteProperty)
 async def delete_property(property_id:Annotated[int,Field(ge=1,description='ID of property to be deleted')],current_user:ActiveAgent,db:DBSession):
     return await delist_property(property_id,db,current_user)
-    
+
+
+

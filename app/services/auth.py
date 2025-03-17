@@ -138,11 +138,11 @@ async def process_accnt_verification(email:EmailStr,db:AsyncSession):
             status_code=status.HTTP_205_RESET_CONTENT,
             detail='User data not found or expired'
         )
-    username = f'{email.split('@')[0]}_{uuid.uuid4().hex[:8]}'
-    username = user_data.get('username',username)
+    username = user_data.get('username',None) or f'{email.split('@')[0]}_{uuid.uuid4().hex[:8]}'
+    #username = user_data.get('username',username)
     logger.info(f'{email}\'s Data retrieved from redis')
     await redis.delete(user_data_prefix.format(email))
-    
+    user_data.pop('username',None)
     #NOTE - create Client
     new_client = Client(**user_data,account_type=AccountTypeEnum.client,username=username)
     await create_account(new_client,db)

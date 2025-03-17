@@ -2,14 +2,26 @@ from fastapi import APIRouter,UploadFile,File,HTTPException,status
 from app.services.user_service import ActiveUser,ActiveClient,ActiveAgent
 from app.services.profile import upload_image,update_user
 from core.dependecies import FileUploadException,DBSession
-from app.schemas.user_schema import UserShow,UserUpdate,FileShow,FileDir
+from app.schemas.user_schema import UserShow,UserUpdate,FileShow,FileDir, AccountInfoBase
 from typing import Annotated,List
 from sqlalchemy.engine import Result
-from app.schemas.property_schema import (AppointmentSchema,
-                                         AppointmentShow,
-                                         AvailabilityShow,
-                                         AgentAvailabilitySchema)
-from app.services.listing import book_appointment,create_availability,fetch_schedule,update_agent_availabilty
+from app.schemas.property_schema import (
+    AppointmentSchema,
+    AppointmentShow,
+    AvailabilityShow,
+    AgentAvailabilitySchema,
+    ContractResponse,
+    ContractCreate)
+from app.services.listing import (
+    book_appointment,
+    create_availability,
+    fetch_schedule,
+    update_agent_availabilty,
+    cancel_appointment_by_id,
+    get_payment_info,
+    confirm_payment,
+    proccess_approve_payment,
+    run_create_contract)
 
 
 
@@ -39,7 +51,6 @@ async def update_me(current_user:ActiveUser,update_data:UserUpdate,db:DBSession)
 
 
 #NOTE - Delete
-
 @router.delete('/delete-accnt',status_code=status.HTTP_202_ACCEPTED)
 async def delete_account(current_user:ActiveUser,db:DBSession):
     current_user.is_active =False
@@ -53,6 +64,16 @@ async def delete_account(current_user:ActiveUser,db:DBSession):
 async def book_appointment(current_user:ActiveClient,payload:AppointmentSchema,db:DBSession):
     return await book_appointment(current_user.id,payload.agent_id,payload.requested_time,db)
 
+#NOTE Cancel Appointment
+@router.delete('/cancel-appointment/{appointment_id}',status_code= status.HTTP_200_OK,response_model=dict)
+async def cancel_aappointment(appointment_id:int,current_user:ActiveUser,db:DBSession):
+    return await cancel_appointment_by_id(appointment_id,current_user,db)
+
+@router.get("/payment-info/{contract_id}", response_model=AccountInfoBase,status_code=status.HTTP_200_OK)
+async def get_payment_info(contract_id: int, db:DBSession,current_user:ActiveUser):
+    return await get_payment_info(contract_id,db)
+
+
 #NOTE create availability
 @router.post('/create-available-time',status_code=status.HTTP_201_CREATED,response_model=AvailabilityShow)
 async def create_schedule(request:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
@@ -62,6 +83,19 @@ async def create_schedule(request:AgentAvailabilitySchema,current_user:ActiveAge
 async def get_schedule(current_user:ActiveAgent,db:DBSession):
     return await fetch_schedule(current_user.id,db)
 
-@router.put('/update-schedule/{id}',response_model=AvailabilityShow,status_code=status.HTTP_200_OK)
-async def update_schedule(id:int,update_data:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
-    return await update_agent_availabilty(update_data,db,id)
+@router.put('/update-schedule/{schedule_id}',response_model=AvailabilityShow,status_code=status.HTTP_200_OK)
+async def update_schedule(schedule_id:int,update_data:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
+    return await update_agent_availabilty(update_data,db,schedule_id,current_user)
+
+@router.post("/confirm-payment/{contract_id}",status_code=status.HTTP_200_OK,response_model=dict)
+async def confirm_client_payment(contract_id: int, db:DBSession,user:ActiveClient):
+    return await confirm_payment(contract_id,db)
+
+@router.post("/approve-payment/{contract_id}",status_code=status.HTTP_200_OK,response_model=dict)
+async def approve_payment(contract_id: int, db:DBSession,user:ActiveAgent):
+    return await proccess_approve_payment(contract_id,db)
+
+
+@router.post("/contracts/", response_model=ContractResponse,status_code=status.HTTP_201_CREATED)
+async def create_contract(data:ContractCreate,current_user:ActiveClient,db:DBSession):
+    return await run_create_contract(data,db,current_user)

@@ -8,7 +8,7 @@ from app.utils.utils import hash_password,decode_url
 from datetime import datetime
 from app.utils.enums import KycStatusEnum
 from typing import Union,Literal,List,Optional,Annotated
-from app.schemas.property_schema import PropertyShow,AvailabilityShow
+from app.schemas.property_schema import PropertyShow,AvailabilityShow,ContractInDB,AppointmentShow
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
@@ -29,7 +29,17 @@ class UserCreate(BaseModel):
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
+class AccountInfoBase(BaseModel):
+    account_name:str
+    bank_name:str
+    acount_number:Annotated[str,Field(examples=['1234567890'],max_length=20)]
 
+class AccountInfoShow(AccountInfoBase):
+    id:int
+    user_id:int
+    
+    class Config:
+        from_attributes = True
     
     
 class UserShow(BaseUserSchema):
@@ -40,10 +50,14 @@ class UserShow(BaseUserSchema):
     verified:bool
     location:Optional[str]
     kyc_status: KycStatusEnum
-    listing:Optional[List[PropertyShow]] = None
+    listing:Optional[List[PropertyShow]] = []
+    appointments: Optional[List[AppointmentShow]]=[]
+    account_info:Optional[List[AccountInfoShow]]  = []
+    availabilities:Optional[List[AvailabilityShow]] = []
     class Config:
         from_attributes = True
     
+
 class UserInDB(UserShow):
     id:int
     account_type:AccountTypeEnum

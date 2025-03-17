@@ -1,6 +1,6 @@
 from pydantic import BaseModel,AnyUrl,Field
 from typing import List,Union,Annotated,Optional
-from app.utils.enums import PropertyStatEnum,PropertyTypeEnum
+from app.utils.enums import ListingTypeEnum,PropertyTypeEnum
 from datetime import datetime,time
 from app.utils.enums import AppointmentStatEnum
 
@@ -16,7 +16,7 @@ class PropertyBase(BaseModel):
     location:str
     price: float
     property_type:PropertyTypeEnum
-    status:PropertyStatEnum
+    status:ListingTypeEnum
     furnished:bool
     is_active:bool
     bathroom:int
@@ -51,7 +51,7 @@ class PropertyUpdate(BaseModel):
     location:Optional[str] = None
     price: Optional[float]= None
     property_type:Optional[PropertyTypeEnum]= None
-    status:Optional[PropertyStatEnum] = None
+    status:Optional[ListingTypeEnum] = None
     furnished:Optional[bool] = None
     is_active:Optional[bool] = None
     bathroom:Optional[int] = None
@@ -95,6 +95,9 @@ class AvailabilityShow(AgentAvailabilitySchema):
     id:int
     agent_id:int
     is_booked:bool
+    
+    class Config:
+        from_attributes = True
 
 class AppointmentShow(BaseModel):
     id:int
@@ -106,3 +109,36 @@ class AppointmentShow(BaseModel):
     created_at:datetime
     updated_at:datetime
     
+
+class ContractInDB(BaseModel):
+    id: int
+    property_id: int 
+    client_id: int
+    agent_id:int
+    contract_type: str
+    amount: float
+    start_date: datetime
+    end_date: datetime | None
+    is_active: bool 
+    property:PropertyShow 
+    
+    class Config:
+        from_attributes = True
+        
+class ContractCreate(BaseModel):
+    property_id: int
+    amount: float
+    rental_period_months: Optional[int] = None  # Required only for rentals
+    is_payment_made: bool  # Ensure payment is confirmed before contract creation
+
+class ContractResponse(BaseModel):
+    contract_id: int
+    property_id: int
+    contract_type: ListingTypeEnum
+    amount: float
+    start_date: datetime
+    end_date: Optional[datetime]
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
