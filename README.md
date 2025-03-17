@@ -177,7 +177,70 @@ This is the backend system for the real estate application. It handles user auth
 ## Scheduled Jobs (APScheduler)
 - Runs **every 24 hours** to check for expired contracts.
 - Marks contracts as inactive and updates property availability.
+```markdown
+## WebSocket for Real-time Chat  
 
+The chat system enables real-time messaging using WebSockets. Below is how to interact with it.  
+
+### **WebSocket Endpoint**  
+
+```
+ws://https://sheda-backend-production.up.railway.app/chat/{user_id}
+```
+
+### **Authentication & Connection**  
+
+- The `{user_id}` should be replaced with the authenticated user's ID.  
+- Clients must establish a WebSocket connection to send and receive messages in real time.  
+
+### **Message Format**  
+
+Messages sent to the WebSocket should follow this **JSON format**:  
+
+```json
+{
+  "sender_id": 1,
+  "receiver_id": 2,
+  "message": "Hello!"
+}
+```
+
+### **Receiving Messages**  
+
+Incoming messages from the WebSocket are structured as:  
+
+```json
+{
+  "sender_id": 1,
+  "message": "Hello!"
+}
+```
+
+### **Chat History Endpoint**  
+
+To retrieve past messages, make a **GET** request to:  
+
+```
+GET https://sheda-backend-production.up.railway.app/chat-history
+```
+
+#### **Response Format**  
+
+```json
+[
+  {
+    "sender_id": 1,
+    "receiver_id": 2,
+    "message": "Hello!",
+    "timestamp": "2025-03-17T12:34:56Z"
+  }
+]
+```
+
+### **Disconnection Handling**  
+
+When a user disconnects, their WebSocket session is removed from active connections, ensuring clean resource management.  
+```
 ## Deployment
 - Hosted on **Railway**.
 - Uses PostgreSQL for the database.
