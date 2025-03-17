@@ -1,8 +1,8 @@
-from fastapi import APIRouter,UploadFile,File,HTTPException,status
+from fastapi import APIRouter,UploadFile,File,HTTPException,status,Query
 from app.services.user_service import ActiveUser,ActiveClient,ActiveAgent
-from app.services.profile import upload_image,update_user
+from app.services.profile import upload_image,update_user,create_new_payment_info,get_account_info,update_account_info,run_account_info_deletion
 from core.dependecies import FileUploadException,DBSession
-from app.schemas.user_schema import UserShow,UserUpdate,FileShow,FileDir, AccountInfoBase
+from app.schemas.user_schema import UserShow,UserUpdate,FileShow,FileDir, AccountInfoBase,AccountInfoShow
 from typing import Annotated,List
 from sqlalchemy.engine import Result
 from app.schemas.property_schema import (
@@ -11,7 +11,8 @@ from app.schemas.property_schema import (
     AvailabilityShow,
     AgentAvailabilitySchema,
     ContractResponse,
-    ContractCreate)
+    ContractCreate,
+    )
 from app.services.listing import (
     book_appointment,
     create_availability,
@@ -21,8 +22,8 @@ from app.services.listing import (
     get_payment_info,
     confirm_payment,
     proccess_approve_payment,
-    run_create_contract)
-
+    run_create_contract,)
+from typing import Optional
 
 
 
@@ -68,6 +69,24 @@ async def book_appointment(current_user:ActiveClient,payload:AppointmentSchema,d
 @router.delete('/cancel-appointment/{appointment_id}',status_code= status.HTTP_200_OK,response_model=dict)
 async def cancel_aappointment(appointment_id:int,current_user:ActiveUser,db:DBSession):
     return await cancel_appointment_by_id(appointment_id,current_user,db)
+
+@router.post('/create-payment-info',status_code=status.HTTP_200_OK,response_model=AccountInfoShow)
+async def create_payment_info(data:AccountInfoBase,db:DBSession,current_user:ActiveUser):
+    return await create_new_payment_info(data,db,current_user)
+
+#NOTE Get user account info by the current user or a specified ID    
+@router.get('/payment-info',status_code=status.HTTP_200_OK,response_model=List[AccountInfoShow])
+async def get_payment_info(*,user_id:Optional[int]=Query(None),db:DBSession,current_user:ActiveUser):
+    user_id = user_id or current_user.id
+    return await get_account_info(db,user_id)
+
+@router.put('/update-account-info/{account_info_id}',status_code=status.HTTP_200_OK,response_model=AccountInfoShow)
+async def update_payment_info(update_data:AccountInfoBase,account_info_id:int,current_user:ActiveUser,db:DBSession):
+    return await update_account_info(update_data,db,current_user,account_info_id)
+
+@router.delete('/delete-accnt-info/{account_info_id}',status_code=status.HTTP_201_CREATED,response_model=dict)
+async def delete_account_info(account_info_id:int,current_user:ActiveUser,db:DBSession):
+    return await run_account_info_deletion(current_user,db,account_info_id)
 
 @router.get("/payment-info/{contract_id}", response_model=AccountInfoBase,status_code=status.HTTP_200_OK)
 async def get_payment_info(contract_id: int, db:DBSession,current_user:ActiveUser):
