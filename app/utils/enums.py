@@ -50,6 +50,6 @@ class WeekDayEnum(str,Enum):
     
 class PropertyStatEnum(str,Enum):
     sold = 'sold'
-    rent = 'rented'
+    rented = 'rented'
     available = 'available'
 

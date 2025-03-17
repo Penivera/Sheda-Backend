@@ -30,9 +30,9 @@ class UserCreate(BaseModel):
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
 class AccountInfoBase(BaseModel):
-    account_name:str
-    bank_name:str
-    acount_number:Annotated[str,Field(examples=['1234567890'],max_length=20)]
+    account_name:Optional[str] = None
+    bank_name:Optional[str] = None
+    acount_number:Annotated[Optional[str],Field(examples=['1234567890'],max_length=20,default=None)]
 
 class AccountInfoShow(AccountInfoBase):
     id:int

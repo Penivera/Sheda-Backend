@@ -3,8 +3,9 @@ from pathlib import Path
 from core.configs import Media_dir
 from fastapi import UploadFile,HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas.user_schema import BaseUserSchema,UserUpdate,UserInDB,FileDir,RatingShow
+from app.schemas.user_schema import BaseUserSchema,UserUpdate,UserInDB,FileDir,RatingShow,AccountInfoBase
 from app.models.user import Agent,BaseUser
+from app.models.property import AccountInfo
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 
@@ -47,4 +48,45 @@ async def updated_rating(agent_id:int,update_rating:int,db:AsyncSession):
     await db.refresh(agent)
     return RatingShow(rating=agent.rating)
 
+async def  create_new_payment_info(data:AccountInfoBase,db:AsyncSession,user:UserInDB):
+    account_info = AccountInfo(
+        **data,
+        user_id = user.id,
+    )
+    db.add(account_info)
+    await db.commit()
+    await db.refresh(account_info)
+    return account_info
+    
+async def get_account_info(db:AsyncSession,user_id:None):
+    query = select(AccountInfo).where(AccountInfo.user_id==user_id)
+    result:Result = db.execute(query)
+    account_info = result.scalars().all()
+    return account_info or []
 
+async def update_account_info(update_data:AccountInfoBase,db:AsyncSession,current_user:UserInDB,account_info_id:int):
+    account_info = next((account_info for account_info in current_user.account_info if account_info.id == account_info_id),None)
+    if not account_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Account info not found or not owned by you'
+        )
+    for key,value in update_data.model_dump(exclude_unset=True):
+        setattr(account_info,key,value)
+        
+    db.add(account_info)
+    await db.commit()
+    await db.refresh(account_info)
+    return account_info
+
+async def run_account_info_deletion(current_user:UserInDB,db:AsyncSession,account_info_id:int):
+    account_info = next((account_info for account_info in current_user.account_info if account_info.id == account_info_id),None)
+    if not account_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Account info not found or not owned by you'
+        )
+    db.delete(account_info)
+    await db.commit()
+    await db.refresh(account_info)
+    return {'detail':'Account Info Deleted Succesfully'}
