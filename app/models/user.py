@@ -32,7 +32,11 @@ class BaseUser(Base):
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
     fullname:Mapped[str]=mapped_column(String(50),nullable=True,)
     
-
+    account_info = relationship("AccountInfo", back_populates="user",lazy='selectin',cascade='all, delete-orphan')
+    
+    #SECTION -  Chat Relationships
+    sent_messages = relationship("Chat", foreign_keys="[Chat.sender_id]", back_populates="sender", lazy="selectin")
+    received_messages = relationship("Chat", foreign_keys="[Chat.receiver_id]", back_populates="receiver", lazy="selectin")
     __mapper_args__ = {
         "polymorphic_identity": "user",
         "polymorphic_on": account_type,
@@ -57,8 +61,10 @@ class BaseUser(Base):
 class Client(BaseUser):
     __tablename__ = 'client'
     id: Mapped[int]= mapped_column(ForeignKey('user.id',ondelete='CASCADE'),primary_key=True,)
-    properties = relationship('Property',back_populates='client')
+    properties = relationship('Property',back_populates='client',lazy='selectin')
     appointments=relationship('Appointment',back_populates='client',cascade='all, delete-orphan',lazy='selectin')
+    payment_confirmations = relationship("PaymentConfirmation", back_populates="client", lazy="selectin",cascade='all, delete-orphan')
+    
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.client,
     }
@@ -72,7 +78,8 @@ class Agent(BaseUser):
     rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
     listings = relationship('Property',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
     appointments=relationship('Appointment',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
-    availabilities = relationship("Agent", back_populates="agent",cascade='all, delete-orphan')
+    availabilities = relationship("Agent", back_populates="agent",cascade='all, delete-orphan',lazy='selectin')
+    payment_confirmations = relationship("PaymentConfirmation", back_populates="agent", lazy="selectin",cascade = 'all, delete-orphan')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }

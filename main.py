@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+from app.routers import auth, listing, user
 from core.starter import lifespan
 from core.configs import origins,DEBUG_MODE
-from app.routers import auth_router,user_router,listing_router
+from app.routers import chat
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(lifespan=lifespan,title='Sheda Solutions Backend',version='0.1.0',docs_url='/',description='Backend for Sheda Solutions',debug=DEBUG_MODE,servers=[
@@ -11,9 +12,10 @@ app = FastAPI(lifespan=lifespan,title='Sheda Solutions Backend',version='0.1.0',
               )
 
 #NOTE - Include Routers
-app.include_router(auth_router.router,prefix='/api')
-app.include_router(user_router.router,prefix='/api')
-app.include_router(listing_router.router,prefix='/api')
+app.include_router(auth.router,prefix='/api')
+app.include_router(user.router,prefix='/api')
+app.include_router(listing.router,prefix='/api')
+app.include_router(chat.router,prefix='/api')
 
 
 #STUB - Set in full production

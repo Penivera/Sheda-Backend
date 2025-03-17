@@ -77,38 +77,118 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
-## **API Endpoints**
+# Real Estate Backend API
+
+## Overview
+This is the backend system for the real estate application. It handles user authentication, property listings, appointments, contract creation, chat system, and automated contract expiration management.
+
+## Tech Stack
+- **FastAPI** (Backend framework)
+- **SQLAlchemy** (ORM for database interactions)
+- **PostgreSQL** (Database)
+- **APScheduler** (Scheduled tasks)
+- **Railway** (Deployment platform)
+
+
+## System Flow
+
+### 1️⃣ **User Roles**
+- **Client:** Can browse properties, book appointments, make payments, and chat.
+- **Agent:** Lists properties, manages appointments, confirms payments, and engages with clients.
+
+### 2️⃣ **Property Listings**
+- Properties belong to agents.
+- Can be available for **rent** or **sale**.
+- Includes attributes like price, location, type, status, etc.
+
+### 3️⃣ **Appointments**
+- Clients book an appointment with an agent for a property.
+- The agent confirms or rejects the appointment.
+
+### 4️⃣ **Payment & Contract Flow**
+- After an appointment, the client can **Make Payment** or **Cancel**.
+- If **Make Payment**, account details are shown.
+- Client confirms payment by clicking **"I have made payment"**.
+- The agent then **Accepts** or **Declines** the payment.
+- If accepted, a contract is created for **rent** or **sale**.
+
+### 5️⃣ **Automated Contract Expiration**
+- APScheduler runs a background job **every 24 hours**.
+- It checks contracts that have expired.
+- It deactivates the contract and marks the property as available.
+
+## API Endpoints
 
 ### **Authentication**
-
-- `POST /auth/signup` - Register a new user
-- `POST /auth/login` - Authenticate and get JWT
-- `POST /auth/reset-password` - Request password reset
-
-### **Users**
-
-- `PUT /users/update` - Update user profile
-- `GET /users/me` - Get current user details
+- `POST /auth/register` – Register a new user.
+- `POST /auth/login` – Login and get an access token.
 
 ### **Properties**
+- `GET /properties` – List all properties.
+- `GET /properties/{id}` – Get property details.
+- `POST /properties` – Create a property (**Agent only**).
+- `PATCH /properties/{id}` – Update property details (**Agent only**).
+- `DELETE /properties/{id}` – Delete a property (**Agent only**).
 
-- `POST /properties/` - Create a property listing
-- `GET /properties/` - Get all properties
-- `GET /properties/{id}` - Get property details
-- `PUT /properties/{id}` - Update a listing
-- `DELETE /properties/{id}` - Remove a listing
+### **Appointments**
+- `POST /appointments` – Client books an appointment.
+- `PATCH /appointments/{id}/confirm` – Agent confirms appointment.
+- `DELETE /appointments/{id}` – Cancel appointment.
 
-## **Deployment**
+### **Payments & Contracts**
+- `POST /contracts/{property_id}` – Create a contract after payment.
+- `PATCH /contracts/{id}/confirm-payment` – Agent confirms payment.
+- `PATCH /contracts/{id}/expire` – Mark contract as expired (automated).
 
-This application can be deployed on **Render, Railway, or Azure VPS**. Ensure the `.env` is correctly configured.
+### **Chat System**
+- `POST /chats` – Send a message.
+- `GET /chats/{user_id}` – Retrieve chat history.
 
-## **Contributing**
+## Database Models
 
-1. Fork the repository
-2. Create a new branch
-3. Make changes and commit
-4. Push to your fork and create a PR
+### **User (BaseUser abstract model)**
+- `id` – Primary key.
+- `role` – Can be `client` or `agent`.
 
-## **License**
+### **Property**
+- `id` – Primary key.
+- `agent_id` – Foreign key to `User`.
+- `status` – `available`, `sold`, `rented`.
 
-MIT License
+### **Appointment**
+- `id` – Primary key.
+- `client_id` – Foreign key to `User`.
+- `agent_id` – Foreign key to `User`.
+- `property_id` – Foreign key to `Property`.
+
+### **Contract**
+- `id` – Primary key.
+- `property_id` – Foreign key to `Property`.
+- `client_id` – Foreign key to `User`.
+- `agent_id` – Foreign key to `User`.
+- `is_active` – Becomes `False` when expired.
+
+### **Chat**
+- `id` – Primary key.
+- `sender_id` – Foreign key to `User`.
+- `receiver_id` – Foreign key to `User`.
+- `message` – Text content.
+
+## Scheduled Jobs (APScheduler)
+- Runs **every 24 hours** to check for expired contracts.
+- Marks contracts as inactive and updates property availability.
+
+## Deployment
+- Hosted on **Render**.
+- Uses PostgreSQL for the database.
+- APScheduler runs within the FastAPI application.
+
+## Next Steps
+- Implement WebSockets for real-time chat.
+- Improve payment verification with webhook integration.
+- Enhance notification system for user interactions.
+
+---
+
+This README provides a structured view of the backend logic and endpoints, making it easier for the frontend team to integrate effectively.
+

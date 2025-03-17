@@ -22,7 +22,7 @@ class KycStatusEnum(str,Enum):
     rejected = 'rejected'
     
     
-class PropertyStatEnum(str,Enum):
+class ListingTypeEnum(str,Enum):
     rent ='rent'
     sale = 'sale'
     
@@ -30,6 +30,8 @@ class PropertyStatEnum(str,Enum):
 class PropertyTypeEnum(str,Enum):
     apartment = 'apartment'
     land = 'land'
+    shortlet = 'shortlet'
+    shared_apartment = 'shared apartment'
     
 class AppointmentStatEnum(str,Enum):
     pending = "pending"
@@ -46,4 +48,8 @@ class WeekDayEnum(str,Enum):
     SUNDAY = 'SUNDAY'    
 
     
+class PropertyStatEnum(str,Enum):
+    sold = 'sold'
+    rent = 'rented'
+    available = 'available'
 
