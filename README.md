@@ -179,7 +179,7 @@ This is the backend system for the real estate application. It handles user auth
 - Marks contracts as inactive and updates property availability.
 
 ## Deployment
-- Hosted on **Render**.
+- Hosted on **Railway**.
 - Uses PostgreSQL for the database.
 - APScheduler runs within the FastAPI application.
 
@@ -189,6 +189,4 @@ This is the backend system for the real estate application. It handles user auth
 - Enhance notification system for user interactions.
 
 ---
-
-This README provides a structured view of the backend logic and endpoints, making it easier for the frontend team to integrate effectively.
 
