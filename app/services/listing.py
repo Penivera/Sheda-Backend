@@ -10,9 +10,10 @@ from fastapi import HTTPException,status
 from app.schemas.property_schema import FilterParams,PropertyFeed,DeleteProperty,AgentAvailabilitySchema
 from datetime import datetime,timezone,timedelta
 from app.utils.enums import AppointmentStatEnum,PropertyStatEnum,ListingTypeEnum
+from core.configs import logger
 
 async def create_property_listing(current_user:UserInDB,property_data:PropertyBase,db:AsyncSession):
-    new_property = Property(user_id=current_user.id,**property_data.model_dump(exclude={'images'}))
+    new_property = Property(agent_id=current_user.id,**property_data.model_dump(exclude={'images'}))
     images = [PropertyImage(**img.model_dump()) for img in property_data.images]
     new_property.images = images
     db.add(new_property)
@@ -87,7 +88,7 @@ async def delist_property(property_id:int,db:AsyncSession,current_user:UserInDB)
     return DeleteProperty(message='Property Deleted')
     
     
-async def book_appointment(client_id: int, agent_id: int, property_id: int, requested_time: datetime, db:AsyncSession):
+async def run_book_appointment(client_id: int, agent_id: int, property_id: int, requested_time: datetime, db:AsyncSession):
     requested_weekday = requested_time.strftime('%A').upper()
     requested_time_only = requested_time.time()
     
@@ -107,6 +108,7 @@ async def book_appointment(client_id: int, agent_id: int, property_id: int, requ
         available_slot.is_booked = True
         scheduled_time = requested_time
     else:
+        logger.error(f'slots found:{available_slot}')
         # No available slot, negotiation required
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,

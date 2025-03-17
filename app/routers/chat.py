@@ -27,7 +27,7 @@ async def websocket_chat(websocket: WebSocket, user_id: int, db:DBSession,curren
             
             # Store message in the database
             chat_message = ChatMessageSchema(sender_id=sender_id, receiver_id=receiver_id, message=message)
-            db_message = ChatMessage(**chat_message.model_dump(exclude_unset=True))
+            db_message = ChatMessage(**chat_message.model_dump(exclude_unset=True)) 
             db.add(db_message)
             db.commit()
             db.refresh(db_message)

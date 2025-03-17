@@ -1,6 +1,6 @@
 from pydantic import BaseModel,AnyUrl,Field
 from typing import List,Union,Annotated,Optional
-from app.utils.enums import ListingTypeEnum,PropertyTypeEnum
+from app.utils.enums import ListingTypeEnum,PropertyTypeEnum,PropertyStatEnum
 from datetime import datetime,time
 from app.utils.enums import AppointmentStatEnum
 
@@ -16,7 +16,8 @@ class PropertyBase(BaseModel):
     location:str
     price: float
     property_type:PropertyTypeEnum
-    status:ListingTypeEnum
+    listing_type:ListingTypeEnum
+    status:PropertyStatEnum
     furnished:bool
     is_active:bool
     bathroom:int
@@ -36,14 +37,11 @@ class PropertyBase(BaseModel):
         
 class PropertyShow(PropertyBase):
     id:int
-    user_id:int
+    agent_id:int
     
     class Config:
         from_attributes = True
         
-    
-    class Config:
-        from_attributes = True
         
 class PropertyUpdate(BaseModel):
     title:Optional[str] = None
@@ -51,7 +49,8 @@ class PropertyUpdate(BaseModel):
     location:Optional[str] = None
     price: Optional[float]= None
     property_type:Optional[PropertyTypeEnum]= None
-    status:Optional[ListingTypeEnum] = None
+    listing_type:Optional[ListingTypeEnum] = None
+    status:Optional[PropertyStatEnum] = None
     furnished:Optional[bool] = None
     is_active:Optional[bool] = None
     bathroom:Optional[int] = None

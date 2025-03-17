@@ -35,8 +35,8 @@ class BaseUser(Base):
     account_info = relationship("AccountInfo", back_populates="user",lazy='selectin',cascade='all, delete-orphan')
     
     #SECTION -  Chat Relationships
-    sent_messages = relationship("Chat", foreign_keys="[Chat.sender_id]", back_populates="sender", lazy="selectin")
-    received_messages = relationship("Chat", foreign_keys="[Chat.receiver_id]", back_populates="receiver", lazy="selectin")
+    sent_messages = relationship("ChatMessage", foreign_keys="[ChatMessage.sender_id]", back_populates="sender", lazy="selectin")
+    received_messages = relationship("ChatMessage", foreign_keys="[ChatMessage.receiver_id]", back_populates="receiver", lazy="selectin")
     __mapper_args__ = {
         "polymorphic_identity": "user",
         "polymorphic_on": account_type,
@@ -78,7 +78,7 @@ class Agent(BaseUser):
     rating:Mapped[float] = mapped_column(Float,nullable=True,default=0.0)
     listings = relationship('Property',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
     appointments=relationship('Appointment',back_populates='agent',cascade='all, delete-orphan',lazy='selectin')
-    availabilities = relationship("Agent", back_populates="agent",cascade='all, delete-orphan',lazy='selectin')
+    availabilities = relationship("AgentAvailability", back_populates="agent",cascade='all, delete-orphan',lazy='selectin')
     payment_confirmations = relationship("PaymentConfirmation", back_populates="agent", lazy="selectin",cascade = 'all, delete-orphan')
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,

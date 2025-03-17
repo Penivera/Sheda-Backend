@@ -8,6 +8,8 @@ from app.models.user import Agent,BaseUser
 from app.models.property import AccountInfo
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
+from sqlalchemy.exc import IntegrityError
+from core.configs import logger
 
 async def upload_image(file:UploadFile,identifier,upload_dir:FileDir)->str:
     file_path = os.path.join(Media_dir,upload_dir,f'{identifier}{Path(file.filename).suffix}')   
@@ -27,11 +29,17 @@ async def update_pfp(user:BaseUserSchema,db:AsyncSession,file_path:str):
 async def update_user(update_data:UserUpdate,db:AsyncSession,user:UserInDB):
     for key,value in update_data.model_dump(exclude_unset=True).items():
         setattr(user,key,value)
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user
-
+    try:
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+    except IntegrityError as e:
+        logger.error(str(e))
+        raise HTTPException(
+            status_code= status.HTTP_400_BAD_REQUEST,
+            detail = 'Could not update user,refresh token or switch to appropriate account type'
+        )
 
 async def updated_rating(agent_id:int,update_rating:int,db:AsyncSession):
     query = select(Agent).where(Agent.id==agent_id)
