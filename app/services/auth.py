@@ -17,7 +17,7 @@ from app.schemas.user_schema import BaseUserSchema,UserCreate
 from app.utils.email import create_send_otp
 from app.utils.utils import blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import InvalidTokenError,ExpiredSignatureError
 from core.database import AsyncSessionLocal
 from datetime import datetime
 from pydantic import EmailStr
@@ -168,7 +168,7 @@ async def proccess_logout(token:str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
         
         await blacklist_token(token,remaining_time)
-    except InvalidTokenError:
+    except (InvalidTokenError,ExpiredSignatureError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token")
     return {'message':'Logged out'}
 

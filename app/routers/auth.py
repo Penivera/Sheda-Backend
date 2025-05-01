@@ -29,7 +29,7 @@ router = APIRouter(tags=['Auth'],prefix='/auth',)
              description=SIGN_UP_DESC)
 async def signup_user(request:UserCreate):
     #NOTE - Process signup
-    return await process_signup(request)
+    return await process_signup(request) # type: ignore # type: ignore
 
 @router.post('/verify-account',response_model=Token,status_code=status.HTTP_201_CREATED)
 async def verify_account(email:OtpVerification,db:DBSession):
@@ -41,7 +41,7 @@ async def login_for_access_token(form_data: PassWordRequestForm) -> Token:
     login_data = LoginData(**form_data.__dict__)
     user:UserShow = await authenticate_user(login_data)
     logger.info(form_data.scopes)
-    scopes = [user.account_type.value]
+    scopes = [user.account_type.value] # type: ignore # type: ignore
     access_token = await create_access_token(
         data={"sub": user.username,"scopes": scopes}
         )
@@ -58,7 +58,7 @@ async def logout(current_user:GetUser,token:TokenDependecy):
 @router.put('/reset-password',status_code=status.HTTP_202_ACCEPTED,response_model=Token,description='Reset Password')
 async def reset_pwd(current_user:ActiveUser,payload:PasswordReset,email:OtpVerification,db:DBSession):
     await reset_password(current_user,db,payload.password)
-    scopes = [current_user.account_type.value]
+    scopes = [current_user.account_type.value] # type: ignore
     token = await create_access_token(data={"sub": email,"scopes": scopes})
     return Token(access_token=token)
         
@@ -95,9 +95,9 @@ The previous token will be `blacklisted`'''
 
 @router.put('/refresh-token',response_model=Token,status_code=status.HTTP_200_OK,description=token_refresh_desc)
 async def refresh_token(current_user:ActiveUser,token:TokenDependecy):
-    scopes = [current_user.account_type.value]
+    scopes = [current_user.account_type.value] # type: ignore
     token_exp = await token_exp_time(token)
-    await blacklist_token(token,token_exp)
+    await blacklist_token(token,token_exp) # type: ignore
     new_token = await create_access_token(data={"sub": current_user.email,"scopes": scopes})
     return Token(access_token=new_token)
 
@@ -108,7 +108,7 @@ async def switch_account_type(token:TokenDependecy,payload:SwitchAccountType,cur
    
     new_token = await switch_account(payload.switch_to,current_user)
     exp_time = await token_exp_time(token)
-    await blacklist_token(token,exp_time)
+    await blacklist_token(token,exp_time) # type: ignore
     return new_token
     
 

@@ -13,10 +13,10 @@ from app.schemas.property_schema import PropertyShow,AvailabilityShow,ContractIn
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
     profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
-    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None # type: ignore
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])] = None
     phone_number:Optional[PhoneStr] = None
-    account_type:Optional[AccountTypeEnum] = AccountTypeEnum.client
+    account_type:Optional[AccountTypeEnum]
     fullname:Optional[str] = None
     location:Optional[str] = None
     
@@ -25,7 +25,7 @@ class BaseUserSchema(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None # type: ignore
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
@@ -48,7 +48,6 @@ class UserShow(BaseUserSchema):
     created_at:datetime
     updated_at:datetime
     verified:bool
-    location:Optional[str]
     kyc_status: KycStatusEnum
     listing:Optional[List[PropertyShow]] = []
     appointments: Optional[List[AppointmentShow]]=[]
@@ -60,12 +59,11 @@ class UserShow(BaseUserSchema):
 
 class UserInDB(UserShow):
     id:int
-    account_type:AccountTypeEnum
     password:str
     
 class UserUpdate(BaseUserSchema):
     profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None
-    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None
+    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None # type: ignore
     email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])] = None
     phone_number:Optional[PhoneStr] = None
     fullname:Optional[str] = None
@@ -87,7 +85,7 @@ class FileShow(BaseModel):
 FileDir = Literal['profile','property']
 
 class AgentFeed(BaseModel):
-    profile_pic: Union[AnyUrl,str] = None
+    profile_pic: Union[AnyUrl,str] = None # type: ignore # type: ignore
     username:str
     email:EmailStr
     phone_number:PhoneStr

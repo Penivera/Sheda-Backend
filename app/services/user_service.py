@@ -28,7 +28,7 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
         logger.info(f'Identifier {identifier}')
         if not identifier:
             raise InvalidCredentialsException
-    except InvalidTokenError:
+    except (InvalidTokenError,ExpiredSignatureError):
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
     
@@ -93,7 +93,7 @@ async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDepen
         logger.info(f'OTP Email {email}')
         if not email:
             raise InvalidCredentialsException
-    except InvalidTokenError:
+    except (InvalidTokenError,ExpiredSignatureError):
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
     
