@@ -60,7 +60,7 @@ EMAIL_HOST = os.getenv('EMAIL_HOST')
 #NOTE - DB configs
 REDIS_URL = os.getenv('REDIS_URL')
 redis = aioredis.from_url(REDIS_URL)
-VERIFICATION_CODE_EXP_MIN = timedelta(minutes=int(os.getenv('VERIFICATION_CODE_EXP_MIN')))
+VERIFICATION_CODE_EXP_MIN = timedelta(minutes=int(os.getenv('VERIFICATION_CODE_EXP_MIN'))) # type: ignore # type: ignore
 DB_URL = os.getenv('DB_URL')
 
 
@@ -89,7 +89,5 @@ TEMPLATES = {
     "reset_password": "reset_password.txt",
 }
 
-
-    
 
 

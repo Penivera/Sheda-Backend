@@ -4,7 +4,7 @@ from email_lib import render_template,EmailSender
 from random import randint
 from datetime import timedelta
  
-from core.configs import redis,VERIFICATION_CODE_EXP_MIN,EMAIL,EMAIL_HOST,APP_PASS, logger,otp_prefix,TEMPLATES
+from core.configs import redis,VERIFICATION_CODE_EXP_MIN,EMAIL,EMAIL_HOST,APP_PASS, logger,otp_prefix,TEMPLATES,DEBUG_MODE
 from core.dependecies import env
 
 token_expiration = int(VERIFICATION_CODE_EXP_MIN.total_seconds()/60)
@@ -14,7 +14,7 @@ email_sender = EmailSender(
     smtp_user=EMAIL,
     smtp_pass=APP_PASS,
     from_email=EMAIL
-)
+)#type: ignore
         
 async def create_send_otp(email:str,length:int = 4) -> int:
     otp= ''.join(str(randint(0, 9)) for _ in range(length))
@@ -22,6 +22,9 @@ async def create_send_otp(email:str,length:int = 4) -> int:
     logger.info(f'otp saved to redis for {token_expiration} minutes')
     otp_text = render_template(env,TEMPLATES['otp'],otp=otp,expiry=token_expiration,support_email=EMAIL)
     send_otp = await email_sender.send_email(text=otp_text,to_email=email,subject='OTP for Verification')
+    if DEBUG_MODE:
+        logger.info(f'OTP: {otp}')
+    #NOTE - Uncomment this to send OTP in email
                                 
     if send_otp:
         logger.info('OTP Sent')

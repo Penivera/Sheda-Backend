@@ -19,7 +19,7 @@ from app.services.listing import (
     fetch_schedule,
     update_agent_availabilty,
     cancel_appointment_by_id,
-    get_payment_info,
+    get_payment_info, # type: ignore # type: ignore # type: ignore
     confirm_payment,
     proccess_approve_payment,
     run_create_contract,)
@@ -48,6 +48,7 @@ async def update_me(current_user:ActiveUser,update_data:UserUpdate,db:DBSession)
 @router.delete('/delete-accnt',status_code=status.HTTP_202_ACCEPTED)
 async def delete_account(current_user:ActiveUser,db:DBSession):
     current_user.is_active =False
+    current_user.is_deleted = True
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
@@ -74,7 +75,7 @@ async def create_payment_info(data:AccountInfoBase,db:DBSession,current_user:Act
 
 #NOTE Get user account info by the current user or a specified ID    
 @router.get('/payment-info',status_code=status.HTTP_200_OK,response_model=List[AccountInfoShow])
-async def get_payment_info(*,user_id:Optional[int]=Query(None),db:DBSession,current_user:ActiveUser):
+async def get_payment_info(*,user_id:Optional[int]=Query(None),db:DBSession,current_user:ActiveUser): # type: ignore # type: ignore
     user_id = user_id or current_user.id
     return await get_account_info(db,user_id)
 
@@ -88,7 +89,7 @@ async def delete_account_info(account_info_id:int,current_user:ActiveUser,db:DBS
 
 @router.get("/payment-info/{contract_id}", response_model=AccountInfoBase,status_code=status.HTTP_200_OK)
 async def get_payment_info(contract_id: int, db:DBSession,current_user:ActiveUser):
-    return await get_payment_info(contract_id,db)
+    return await get_payment_info(contract_id,db) # type: ignore
 
 
 #NOTE create availability
@@ -102,7 +103,7 @@ async def get_schedule(current_user:ActiveAgent,db:DBSession):
 
 @router.put('/update-schedule/{schedule_id}',response_model=AvailabilityShow,status_code=status.HTTP_200_OK)
 async def update_schedule(schedule_id:int,update_data:AgentAvailabilitySchema,current_user:ActiveAgent,db:DBSession):
-    return await update_agent_availabilty(update_data,db,schedule_id,current_user)
+    return await update_agent_availabilty(update_data,db,schedule_id,current_user) # type: ignore # type: ignore
 
 @router.post("/confirm-payment/{contract_id}",status_code=status.HTTP_200_OK,response_model=dict)
 async def confirm_client_payment(contract_id: int, db:DBSession,user:ActiveClient):

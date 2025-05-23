@@ -6,7 +6,7 @@ from pydantic import (BaseModel,
 from  app.utils.enums import PhoneStr,AccountTypeEnum
 from app.utils.utils import hash_password,decode_url
 from datetime import datetime
-from app.utils.enums import KycStatusEnum
+from app.utils.enums import KycStatusEnum,UserRole
 from typing import Union,Literal,List,Optional,Annotated
 from app.schemas.property_schema import PropertyShow,AvailabilityShow,ContractInDB,AppointmentShow
 
@@ -45,6 +45,7 @@ class AccountInfoShow(AccountInfoBase):
 class UserShow(BaseUserSchema):
     agency_name:Annotated[Optional[str],Field(default=None)]
     is_active:bool
+    is_deleted:bool
     created_at:datetime
     updated_at:datetime
     verified:bool
@@ -60,6 +61,7 @@ class UserShow(BaseUserSchema):
 class UserInDB(UserShow):
     id:int
     password:str
+    role:UserRole
     
 class UserUpdate(BaseUserSchema):
     profile_pic : Annotated[Optional[Union[AnyUrl,str]],AfterValidator(decode_url),Field(examples=['https://example/img/user.jpg'],max_length=255)]=None

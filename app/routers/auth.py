@@ -1,5 +1,5 @@
 from fastapi import APIRouter,status,HTTPException
-from app.schemas.user_schema import UserCreate,UserShow,BaseUserSchema
+from app.schemas.user_schema import UserCreate, UserInDB,UserShow,BaseUserSchema
 from app.services.auth import process_signup,process_accnt_verification,proccess_logout
 from app.services.auth import (
     authenticate_user,
@@ -39,9 +39,9 @@ async def verify_account(email:OtpVerification,db:DBSession):
 @router.post("/login",response_model=Token)
 async def login_for_access_token(form_data: PassWordRequestForm) -> Token:
     login_data = LoginData(**form_data.__dict__)
-    user:UserShow = await authenticate_user(login_data)
+    user:UserInDB= await authenticate_user(login_data)
     logger.info(form_data.scopes)
-    scopes = [user.account_type.value] # type: ignore # type: ignore
+    scopes = [user.account_type.value,user.role.value] # type: ignore 
     access_token = await create_access_token(
         data={"sub": user.username,"scopes": scopes}
         )

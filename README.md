@@ -251,5 +251,108 @@ When a user disconnects, their WebSocket session is removed from active connecti
 - Improve payment verification with webhook integration.
 - Enhance notification system for user interactions.
 
+
+
 ---
+
+## 🔐 Admin Role and Permissions
+
+### Overview
+
+The system supports a distinct `admin` role. This role provides elevated privileges across the platform and is granted through the `role` field on the user object.
+
+* `role` values: `"user"` (default), `"admin"`
+* Admins may have associated accounts (e.g., buyer/seller), but their elevated privileges are determined by the `role` field, not the account type.
+
+### 🔧 Promoting a User to Admin
+
+Any registered user can be granted admin privileges by directly updating their `role` in the database:
+
+```sql
+UPDATE users SET role = 'admin' WHERE id = '<user_id>';
+```
+
+> ⚠️ This does **not** change other attributes. Admins will retain any existing buyer/seller accounts unless explicitly handled.
+
+After this update:
+
+* Tokens issued to that user will include the `"admin"` scope.
+* The user will be able to access admin-only routes if they are active.
+
+---
+
+### Token Scopes
+
+Tokens issued to users now include a `scopes` claim. For admin users, this will include the `"admin"` scope.
+
+Example token payload:
+
+```json
+{
+  "sub": "user_id",
+  "scopes": ["admin"]
+}
+```
+
+To gain access to admin-only features, the token must include the `"admin"` scope, and the user must have the `admin` role **and** be active.
+
+### Authorization Logic
+
+All protected routes check scopes and roles like so:
+
+* If the route requires `"admin"` scope:
+
+  * The token must include `"admin"`
+  * The user’s `role` must be `admin`
+  * The user must be active
+
+Failing any of these conditions will result in a `403 Forbidden`.
+
+---
+
+## 🔒 Admin-Only Endpoint
+
+### Upload Media File
+
+**Endpoint:**
+`POST /api/media/file-upload/{type}`
+
+**Description:**
+Upload a media file of the specified type. Only admin users can access this endpoint.
+
+**Path Parameters:**
+
+* `type`: string — the category/type of the file to be uploaded.
+
+**Authentication Required:**
+
+* Bearer token with `"admin"` scope
+
+**Responses:**
+
+* `201 Created`: File uploaded successfully
+* `401 Unauthorized`: Missing or invalid token
+* `403 Forbidden`: User is not an active admin
+
+---
+
+## 🔑 Available Token Scopes
+
+The following scopes define what a user can do within the system. Scopes are embedded in access tokens and are used to enforce permission checks.
+
+| **Scope** | **Description**                        |
+| --------- | -------------------------------------- |
+| `admin`   | Admin access to all endpoints          |
+| `agent`   | Allows creating and managing products  |
+| `client`  | Allows viewing and purchasing products |
+| `otp`     | Temporary access for OTP verification  |
+
+> **Note:**
+>
+> * User `role` values: `user`, `admin`, `moderator`
+> * User `user_type` values: `client`, `agent`
+
+---
+
+
 

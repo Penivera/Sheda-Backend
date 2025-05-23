@@ -53,3 +53,8 @@ class PropertyStatEnum(str,Enum):
     rented = 'rented'
     available = 'available'
 
+
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
+    MODERATOR = "moderator"

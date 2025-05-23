@@ -94,11 +94,11 @@ class GetUser:
     
 async def get_user(identifier:str,account_type:AccountTypeEnum=AccountTypeEnum.client)->BaseUserSchema:
     user_fetcher = GetUser(identifier)
-    user = await user_fetcher.get_user(account_type)
+    user:UserInDB = await user_fetcher.get_user(account_type)
     return user
 
 async def authenticate_user(login_data:LoginData):
-    user:UserInDB = await get_user(login_data.username)
+    user:UserInDB = await get_user(login_data.username) # type: ignore
     if not user:
         raise InvalidCredentialsException
     if not verify_password(login_data.password,user.password):
@@ -110,7 +110,7 @@ async def create_access_token(data:dict,expire_time=None):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc)+ expiration
     to_encode.update({'exp':expire})
-    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM) # type: ignore
     return encoded_jwt
 
 async def process_signup(user_data:BaseUserSchema):
@@ -131,7 +131,7 @@ async def process_signup(user_data:BaseUserSchema):
     return user_data
     
 async def process_accnt_verification(email:EmailStr,db:AsyncSession):
-    user_data = await redis.hgetall(user_data_prefix.format(email))
+    user_data = await redis.hgetall(user_data_prefix.format(email)) # type: ignore
     user_data ={key.decode():value.decode() for key,value in user_data.items()}
     if not user_data:
         raise HTTPException(
@@ -174,7 +174,7 @@ async def proccess_logout(token:str):
 
 #NOTE -  Return new token with the neccesarry account type
 async def switch_account(switch_to:AccountTypeEnum,current_user:UserInDB):
-    user = await get_user(current_user.email,switch_to)
+    user = await get_user(current_user.email,switch_to) # type: ignore
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
