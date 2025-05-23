@@ -10,7 +10,7 @@ from sqlalchemy import (String,
                         JSON)
 from sqlalchemy.orm import mapped_column,Mapped,relationship
 from datetime import datetime
-from app.utils.enums import AccountTypeEnum,KycStatusEnum
+from app.utils.enums import AccountTypeEnum,KycStatusEnum,UserRole
 from typing import Optional
 
 #NOTE - Base User Model
@@ -31,6 +31,8 @@ class BaseUser(Base):
     kyc_status:Mapped[KycStatusEnum]=mapped_column(Enum(KycStatusEnum),default=KycStatusEnum.pending,nullable= True,)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
     fullname:Mapped[str]=mapped_column(String(50),nullable=True,)
+    role:Mapped[UserRole]=mapped_column(Enum(UserRole),default=UserRole.USER,nullable=False,)
+    is_deleted:Mapped[bool]=mapped_column(Boolean,default=False)
     
     account_info = relationship("AccountInfo", back_populates="user",lazy='selectin',cascade='all, delete-orphan')
     

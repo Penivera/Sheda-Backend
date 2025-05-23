@@ -8,7 +8,7 @@ from core.database import AsyncSessionLocal
 from app.schemas.user_schema import UserShow,UserInDB
 from fastapi import Depends,HTTPException,status,Security
 from typing import Annotated
-from app.utils.enums import AccountTypeEnum
+from app.utils.enums import AccountTypeEnum,UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
 from app.utils.utils import blacklist_token,token_exp_time
@@ -23,7 +23,7 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
     else:
         authenticate_value = 'Bearer'
     try:
-        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM]) # type: ignore
         identifier = payload.get('sub')
         logger.info(f'Identifier {identifier}')
         if not identifier:
@@ -40,14 +40,16 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
                 headers={"WWW-Authenticate": authenticate_value},
             )
     token_data = TokenData(scopes=token_scopes,username=identifier)
-    user = await get_user(token_data.username,token_scopes[0])
+    user:UserInDB = await get_user(token_data.username,token_scopes[0]) # type: ignore 
     logger.info(f'User {user.username} fetched')
     if not user:
         logger.error('User not found')
         raise InvalidCredentialsException
     #NOTE - Scopes
+    if 'admin' in token_scopes and user.role == UserRole.ADMIN: #NOTE - Admin access
+        return user
     for scope in security_scopes.scopes:
-        if scope not in token_data.scopes:
+        if scope not in token_data.scopes: # type: ignore # type: ignore # type: ignore
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Not enough permissions",
@@ -88,7 +90,7 @@ async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDepen
     else:
         authenticate_value = 'Bearer'
     try:
-        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM]) # type: ignore
         email = payload.get('sub')
         logger.info(f'OTP Email {email}')
         if not email:
@@ -105,13 +107,32 @@ async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDepen
                 headers={"WWW-Authenticate": authenticate_value},
             )
     token_exp = await token_exp_time(token)
-    await blacklist_token(token,token_exp)
+    await blacklist_token(token,token_exp) # type: ignore
     return email
     
     
 
 OtpVerification = Annotated[EmailStr, Security(get_verified_otp_email, scopes=["otp"])]
 
+
+async def require_admin_scope(
+    current_user: Annotated[UserInDB, Security(get_current_user, scopes=["admin"])]
+):
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive User"
+        )
+    # Check user role
+    if UserRole.ADMIN != current_user.role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+
+    return current_user
+
+AdminUser = Annotated[UserInDB, Depends(require_admin_scope)]
 async def reset_password(user:UserInDB,db:DBSession,new_password:str):
     user.password = new_password
     db.add(user) 

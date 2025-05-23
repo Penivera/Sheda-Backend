@@ -45,7 +45,7 @@ def start_scheduler():
     scheduler.add_job(
         func=lambda: asyncio.run(expire_contracts_task()),  # Run async function
         trigger="interval",
-        hours=24  # Runs every 24 hours
+        hours=24  #NOTE - Runs every 24 hours
     )
     scheduler.start()
 

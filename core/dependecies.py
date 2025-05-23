@@ -20,7 +20,8 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='api/auth/login',scopes={
     AccountTypeEnum.agent.value:'Allow creating and managing products',
     AccountTypeEnum.client.value:'Allow view and purchase of products',
-    'otp':'Temporary access for OTP verification'
+    'otp':'Temporary access for OTP verification',
+    'admin':'Admin access to all endpoints',
 })
 TokenDependecy = Annotated[str,Depends(oauth2_scheme)]
 

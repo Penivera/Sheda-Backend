@@ -30,7 +30,7 @@ async def get_user_properties(current_user:UserInDB,db:AsyncSession):
 
 async def update_listing(property_id:int,current_user:UserInDB,update_data:PropertyUpdate,db:AsyncSession):
     property = next(
-        (listing for listing in current_user.listing if listing.id == property_id),
+        (listing for listing in current_user.listing if listing.id == property_id), # type: ignore
         None
     )
     if not property:
@@ -44,7 +44,7 @@ async def update_listing(property_id:int,current_user:UserInDB,update_data:Prope
         property_images = [
             PropertyImage(**image_data.model_dump()) for image_data in update_data.images
         ]
-    property.images = property_images
+    property.images = property_images # type: ignore
     db.add(property)
     await db.commit()
     await db.refresh(property)
@@ -53,7 +53,7 @@ async def update_listing(property_id:int,current_user:UserInDB,update_data:Prope
 async def filtered_property(filter_query:FilterParams,db:AsyncSession):
     query = select(Property).where(Property.id >= filter_query.cursor).limit(filter_query.limit)
     result:Result = await db.execute(query)
-    properties:Property = result.scalars().all()
+    properties:Property = result.scalars().all() # type: ignore
     next_cursor = properties[-1].id + 1 if properties else None
     return PropertyFeed(data=properties,next_coursor=next_cursor)
 
@@ -71,7 +71,7 @@ async def get_agent_by_id(agent_id:int,db:AsyncSession):
     
 
 async def delist_property(property_id:int,db:AsyncSession,current_user:UserInDB):
-    property:Property = next((property for property in current_user.listing if property.id == property_id),None)
+    property:Property = next((property for property in current_user.listing if property.id == property_id),None) # type: ignore
     
     if not property:
         raise HTTPException(
@@ -102,10 +102,10 @@ async def run_book_appointment(client_id: int, agent_id: int, property_id: int, 
             AgentAvailability.is_booked == False
         )
     )
-    available_slot = available_slot.scalars().first()
+    available_slot = available_slot.scalars().first() # type: ignore
     
     if available_slot:
-        available_slot.is_booked = True
+        available_slot.is_booked = True # type: ignore
         scheduled_time = requested_time
     else:
         logger.error(f'slots found:{available_slot}')
@@ -156,7 +156,7 @@ async def update_agent_availabilty(update:AgentAvailabilitySchema,db:AsyncSessio
     return schedule
     
 async def cancel_appointment_by_id(appointment_id:int,current_user:UserInDB,db:AsyncSession):
-    appointment:Appointment = next((appointment for appointment in current_user.appointments if appointment.id == appointment_id),None)
+    appointment:Appointment = next((appointment for appointment in current_user.appointments if appointment.id == appointment_id),None) # type: ignore
     if not appointment:
         raise HTTPException(
             status_code =status.HTTP_404_NOT_FOUND,
@@ -250,7 +250,7 @@ async def run_create_contract(
     # Set contract duration if renting
     end_date = None
     if contract_type == ListingTypeEnum.rent:
-        end_date = datetime.now(timezone.utc) + timedelta(days=30 * contract_data.rental_period_months)
+        end_date = datetime.now(timezone.utc) + timedelta(days=30 * contract_data.rental_period_months) # type: ignore
 
     # Create contract
     contract = Contract(
