@@ -10,9 +10,12 @@ from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from sqlalchemy.exc import IntegrityError
 from core.configs import logger
+from datetime import datetime
+
+timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
 
 async def upload_image(file:UploadFile,identifier,upload_dir:FileDir)->str:
-    file_path = os.path.join(Media_dir,upload_dir,f'{identifier}{Path(file.filename).suffix}')   
+    file_path = os.path.join(Media_dir,upload_dir,f'id:{identifier}-{timestamp}-{Path(file.filename).suffix}')   
     async with aiofiles.open(file_path, "wb") as buffer:
         while chunk := await file.read(1024):  #NOTE  Read in chunks of 1KB
             await buffer.write(chunk)
