@@ -1,6 +1,6 @@
 from core.dependecies import TokenDependecy,InvalidCredentialsException,DBSession
 import jwt
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import InvalidTokenError,ExpiredSignatureError
 from core.configs import SECRET_KEY,ALGORITHM,redis,logger,BLACKLIST_PREFIX
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user

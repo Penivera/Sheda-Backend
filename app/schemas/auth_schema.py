@@ -28,6 +28,7 @@ class OtpSchema(BaseModel):
 #NOTE -  For Resend otp  
 class OtpSend(BaseModel):
     email:Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
+    
 class PasswordReset(BaseModel):
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     

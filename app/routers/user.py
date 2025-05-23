@@ -29,13 +29,6 @@ from typing import Optional
 
 router = APIRouter(tags=['User'],prefix='/user',)
 
-#NOTE - Upload Profile Picture
-@router.put('/file-upload/{type}',response_model=FileShow,description='Add max size 500kb - 2MB',status_code=status.HTTP_202_ACCEPTED)
-async def upload_file(type:FileDir,current_user:ActiveUser,file: UploadFile = File(...)):
-    if not file.filename:
-        raise FileUploadException
-    file_url = await upload_image(file,current_user.email,type)
-    return FileShow(file_url=file_url)
 
 
 #NOTE -  Get the current user data
