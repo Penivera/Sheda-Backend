@@ -80,8 +80,9 @@ os.makedirs(Media_dir,exist_ok=True)
 
 
 #NOTE - Middleware
-origins = ['*',]
-
+origins = ['http://localhost:8081',]
+METHODS = ["GET", "POST", "PUT", "DELETE","UPDATE"]
+allow_headers=["Content-Type", "Authorization"]
 #NOTE - Templates
 TEMPLATES = {
     "otp": "otp_email.txt",
