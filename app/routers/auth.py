@@ -24,7 +24,7 @@ from app.utils.email import create_send_otp
 router = APIRouter(tags=['Auth'],prefix='/auth',)
 
 @router.post('/signup',
-             response_model=BaseUserSchema,
+             response_model=UserShow,
              status_code=status.HTTP_202_ACCEPTED,
              description=SIGN_UP_DESC)
 async def signup_user(request:UserCreate):
