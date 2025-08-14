@@ -22,7 +22,7 @@ from app.utils.email import create_send_otp
 
 
 router = APIRouter(tags=['Auth'],prefix='/auth',)
-
+#NOTE -  fixed user creation response
 @router.post('/signup',
              response_model=UserShow,
              status_code=status.HTTP_202_ACCEPTED,
