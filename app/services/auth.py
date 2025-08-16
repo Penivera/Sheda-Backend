@@ -1,11 +1,12 @@
+from os import access
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import BaseUser,Client,Agent
 from fastapi import status,HTTPException
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
 import re
-from app.schemas.auth_schema import LoginData,OtpSchema,Token
-from app.schemas.user_schema import UserInDB
+from app.schemas.auth_schema import LoginData,OtpSchema,Token,TokenData,SignUpShow
+from app.schemas.user_schema import UserInDB,UserCreate,UserShow
 from app.utils.utils import verify_password
 from datetime import datetime,timezone,timedelta
 from core.configs import settings,logger,redis
@@ -17,20 +18,23 @@ from app.utils.email import create_send_otp
 from app.utils.utils import blacklist_token,token_exp_time
 from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError,ExpiredSignatureError
-from core.database import AsyncSessionLocal
+from core.database import AsyncSessionLocal, Base
 from datetime import datetime
 from pydantic import EmailStr
-import uuid
 
 
 #NOTE -  Create agent
-async def create_account(new_user:BaseUser,db:AsyncSession):
+async def create_account(user_data:UserCreate,db:AsyncSession):
+    new_client = Client(**user_data.model_dump(),account_type=AccountTypeEnum.client)
+    new_agent = Agent(**user_data.model_dump(),account_type=AccountTypeEnum.agent)
     try:
-        db.add(new_user)
+        db.add(new_client)
+        db.add(new_agent)
         await db.commit()
-        await db.refresh(new_user)
-        logger.info(f'User {new_user.email} created') # type:ignore
-        return new_user
+        await db.refresh(new_client)
+        await db.refresh(new_agent)
+        logger.info(f'User {new_client.email} created') # type:ignore
+        return new_client
     except IntegrityError:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='User already exists')
     except Exception as e:
@@ -99,68 +103,45 @@ async def get_user(identifier:str,account_type:AccountTypeEnum=AccountTypeEnum.c
 async def authenticate_user(login_data:LoginData):
     user:UserInDB = await get_user(login_data.username) # type: ignore
     if not user:
-        raise InvalidCredentialsException
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Username")
     if not verify_password(login_data.password,user.password):
-        raise InvalidCredentialsException
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Password")
     return user
 
-async def create_access_token(data:dict,expire_time=None):
+async def create_access_token(data:TokenData,expire_time=None):
     expiration = timedelta(minutes=expire_time) if expire_time else settings.expire_delta
-    to_encode = data.copy()
+    to_encode = data.model_dump().copy()
     expire = datetime.now(timezone.utc)+ expiration
     to_encode.update({'exp':expire})
     encoded_jwt = jwt.encode(to_encode,settings.SECRET_KEY,algorithm=settings.ALGORITHM) # type: ignore
     return encoded_jwt
 
-async def process_signup(user_data:BaseUserSchema):
-    #NOTE -  Process OTP
-    await redis.hset(settings.USER_DATA_PREFIX.format(user_data.email),mapping=user_data.model_dump(exclude_none=True,exclude_unset=True)) # type: ignore
-    
-    logger.info('User data set to redis')
-    await redis.expire(settings.USER_DATA_PREFIX.format(user_data.email),timedelta(hours=2))
-    
-    logger.info('timer set on user data 2 hours')
-    send_set_otp = await create_send_otp(user_data.email) # type: ignore
-    
-    if not send_set_otp:
+async def process_signup(user_data:UserCreate,db:AsyncSession):
+    new_user = await create_account(user_data,db)
+    token_data = TokenData(sub=new_user.email, scopes=[new_user.account_type.value]) # type: ignore
+    access_token = await create_access_token(data=token_data)
+    return SignUpShow(token=Token(access_token=access_token), user_data=UserShow.model_validate(new_user))
+
+async def verify_user(email: EmailStr, db: AsyncSession):
+    # Fetch the user
+    result = await db.execute(select(BaseUser).where(BaseUser.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
         raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail= 'unable to send confirmation email')
-        
-    return user_data
-    
-async def process_accnt_verification(email:EmailStr,db:AsyncSession):
-    user_data = await redis.hgetall(settings.USER_DATA_PREFIX.format(email)) # type: ignore
-    user_data ={key.decode():value.decode() for key,value in user_data.items()}
-    if not user_data:
-        raise HTTPException(
-            status_code=status.HTTP_205_RESET_CONTENT,
-            detail='User data not found or expired'
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )
-    username = user_data.get('username',None) or f'{email.split('@')[0]}_{uuid.uuid4().hex[:8]}'
-    #username = user_data.get('username',username)
-    logger.info(f'{email}\'s Data retrieved from redis')
-    await redis.delete(settings.USER_DATA_PREFIX.format(email))
-    user_data.pop('username',None)
-    #NOTE - create Client
-    new_client = Client(**user_data,account_type=AccountTypeEnum.client,username=username)
-    await create_account(new_client,db)
-    new_user = await create_account(new_client,db)
-    logger.info(f'{new_user.email} Account created Succesfully as {new_user.account_type}')
-    # #NOTE Create Agent
-    new_agent = Agent(**user_data,account_type=AccountTypeEnum.agent,username=username)
-    new_user = await create_account(new_agent,db)
-    logger.info(f'{new_user.email} Account created Succesfully as {new_user.account_type}')
-    
-    
-    scopes = [new_agent.account_type.value]
-    access_token = await create_access_token(
-        data={"sub": new_agent.username,"scopes": scopes}
-        )
-    return Token(access_token=access_token, token_type="Bearer")
-    
-    
-async def proccess_logout(token:str):
+
+    #NOTE - Update the verified field
+    user.verified = True
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def process_logout(token:str):
     try:
         remaining_time = await token_exp_time(token)
         if not remaining_time:
@@ -180,7 +161,7 @@ async def switch_account(switch_to:AccountTypeEnum,current_user:UserInDB):
             detail = f'{switch_to} account not found'
         )
     scopes = [switch_to]
-    new_token = await create_access_token(data={"sub": current_user.email,"scopes": scopes})
+    new_token = await create_access_token(data=TokenData(sub=current_user.email, scopes=scopes)) # type: ignore
     return Token(access_token=new_token)
 
 

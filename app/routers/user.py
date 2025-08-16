@@ -77,7 +77,7 @@ async def create_payment_info(data:AccountInfoBase,db:DBSession,current_user:Act
 @router.get('/payment-info',status_code=status.HTTP_200_OK,response_model=List[AccountInfoShow])
 async def get_payment_info(*,user_id:Optional[int]=Query(None),db:DBSession,current_user:ActiveUser): # type: ignore # type: ignore
     user_id = user_id or current_user.id
-    return await get_account_info(db,user_id)
+    return await get_account_info(db,user_id) # type: ignore
 
 @router.put('/update-account-info/{account_info_id}',status_code=status.HTTP_200_OK,response_model=AccountInfoShow)
 async def update_payment_info(update_data:AccountInfoBase,account_info_id:int,current_user:ActiveUser,db:DBSession):

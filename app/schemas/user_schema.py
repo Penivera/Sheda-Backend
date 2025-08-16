@@ -24,10 +24,9 @@ class BaseUserSchema(BaseModel):
     class Config:
         from_attributes = True
 
-
 class UserCreate(BaseModel):
-    username:Annotated[Optional[str],Field(example='Admin',max_length=30)] = None # type: ignore
-    email: Annotated[Optional[EmailStr],Field(examples=['penivera655@gmail.com'])]
+    username:Annotated[str,Field(example='Admin',max_length=30)] = None # type: ignore
+    email: Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     password:Annotated[str,BeforeValidator(hash_password),Field(examples=['admin'])]
     
 class AccountInfoBase(BaseModel):
@@ -44,20 +43,21 @@ class AccountInfoShow(AccountInfoBase):
     
     
 class UserShow(BaseUserSchema):
-    agency_name:Annotated[Optional[str],Field(default=None)]
-    is_active:bool
-    is_deleted:bool
-    created_at:datetime
-    updated_at:datetime
-    verified:bool
-    kyc_status: KycStatusEnum
-    listing:Optional[List[PropertyShow]] = []
-    appointments: Optional[List[AppointmentShow]]=[]
-    account_info:Optional[List[AccountInfoShow]]  = []
-    availabilities:Optional[List[AvailabilityShow]] = []
+    agency_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_deleted: Optional[bool] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    verified: Optional[bool] = None
+    kyc_status: Optional[KycStatusEnum] = None
+    listing: Optional[List[PropertyShow]] = []
+    appointments: Optional[List[AppointmentShow]] = []
+    account_info: Optional[List[AccountInfoShow]] = []
+    availabilities: Optional[List[AvailabilityShow]] = []
+
     class Config:
         from_attributes = True
-    
+
 
 class UserInDB(UserShow):
     id:int

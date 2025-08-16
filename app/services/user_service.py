@@ -39,8 +39,8 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
                 detail="OTP token not permitted in this route",
                 headers={"WWW-Authenticate": authenticate_value},
             )
-    token_data = TokenData(scopes=token_scopes,username=identifier)
-    user:UserInDB = await get_user(token_data.username,token_scopes[0]) # type: ignore 
+    token_data = TokenData(scopes=token_scopes,sub=identifier)
+    user:UserInDB = await get_user(token_data.sub,token_scopes[0]) # type: ignore 
     logger.info(f'User {user.username} fetched')
     if not user:
         logger.error('User not found')
