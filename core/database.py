@@ -12,10 +12,7 @@ db_url = (
 )
 
 # Apply check_same_thread only for SQLite
-connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {
-    "ssl": "require",             # Supabase requires SSL
-    "statement_cache_size": 0     # disable prepared statements for PgBouncer
-    },
+connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
 
     
 
