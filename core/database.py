@@ -1,15 +1,19 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine,async_sessionmaker
-from core.configs import DEBUG_MODE,DB_URL
+from core.configs import settings
 
-if DEBUG_MODE:
-    db_url = "sqlite+aiosqlite:///./database.db"
-    connect_args = {"check_same_thread": False}
-elif DB_URL:
-    db_url = DB_URL.replace("postgresql://", "postgresql+asyncpg://") if DB_URL.startswith("postgresql://") else DB_URL
-    connect_args = {}  # No special args for PostgreSQL
-else:
+if not settings.DB_URL:
     raise ValueError("No valid database URL found. Check your configuration.")
+
+db_url = (
+    settings.DB_URL.replace("postgresql://", "postgresql+asyncpg://")
+    if settings.DB_URL.startswith("postgresql://") # type: ignore
+    else settings.DB_URL
+)
+
+# Apply check_same_thread only for SQLite
+connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
+
     
 
 

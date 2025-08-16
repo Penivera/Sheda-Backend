@@ -15,7 +15,7 @@ from app.schemas.auth_schema import (LoginData,
                                      OtpSend,
                                      PasswordReset,
                                      SwitchAccountType)
-from core.configs import SIGN_UP_DESC,logger
+from core.configs import settings,logger
 from app.services.user_service import reset_password,OtpVerification,ActiveUser,GetUser
 from app.utils.utils import verify_otp,blacklist_token,token_exp_time
 from app.utils.email import create_send_otp
@@ -26,7 +26,7 @@ router = APIRouter(tags=['Auth'],prefix='/auth',)
 @router.post('/signup',
              response_model=UserShow,
              status_code=status.HTTP_202_ACCEPTED,
-             description=SIGN_UP_DESC)
+             description=settings.SIGN_UP_DESC)
 async def signup_user(request:UserCreate):
     #NOTE - Process signup
     return await process_signup(request) # type: ignore # type: ignore

@@ -14,7 +14,7 @@ from app.utils.enums import AccountTypeEnum,KycStatusEnum,UserRole
 from typing import Optional
 
 #NOTE - Base User Model
-class BaseUser(Base):
+class BaseUser(Base): 
     __tablename__ = 'user'
     id: Mapped[int]= mapped_column('id',primary_key=True,autoincrement=True)
     username:Mapped[str]=mapped_column(String(30),nullable=True,index=True,)
