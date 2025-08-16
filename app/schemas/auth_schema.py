@@ -4,8 +4,11 @@ from typing import Union,Optional,Annotated
 from app.utils.utils import hash_password
 from typing import List,Optional
 
+
+
+    
 class TokenData(BaseModel):
-    username:Optional[Union[str,EmailStr,PhoneStr]]
+    sub:Optional[Union[str,EmailStr,PhoneStr]]
     scopes:Optional[List[Union[str,None]]] = []
     
 class LoginData(BaseModel):
@@ -15,7 +18,14 @@ class LoginData(BaseModel):
 class Token(BaseModel):
     access_token:str
     token_type:Optional[str] = 'Bearer'
-    
+
+from app.schemas.user_schema import UserShow
+class SignUpShow(BaseModel):
+    token:Token
+    user_data:UserShow
+    class Config:
+        from_attributes = True
+
 class BuyerLogin(BaseModel):
     email:Annotated[EmailStr,Field(examples=['penivera655@gmail.com'])]
     password:str
@@ -36,3 +46,4 @@ class PasswordReset(BaseModel):
 
 class SwitchAccountType(BaseModel):
     switch_to:Annotated[AccountTypeEnum,Field(default=AccountTypeEnum.agent)]
+    
