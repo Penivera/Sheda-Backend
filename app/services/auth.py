@@ -4,12 +4,11 @@ from fastapi import status,HTTPException
 from sqlalchemy.future import select
 from email_validator import validate_email,EmailNotValidError
 import re
-from core.configs import PHONE_REGEX
 from app.schemas.auth_schema import LoginData,OtpSchema,Token
 from app.schemas.user_schema import UserInDB
 from app.utils.utils import verify_password
 from datetime import datetime,timezone,timedelta
-from core.configs import expire_delta,ALGORITHM,SECRET_KEY, logger,user_data_prefix,redis
+from core.configs import settings,logger,redis
 import jwt
 from sqlalchemy.exc import IntegrityError
 from core.dependecies import InvalidCredentialsException
@@ -30,7 +29,7 @@ async def create_account(new_user:BaseUser,db:AsyncSession):
         db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
-        logger.info(f'User {new_user.email} created')
+        logger.info(f'User {new_user.email} created') # type:ignore
         return new_user
     except IntegrityError:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='User already exists')
@@ -54,7 +53,7 @@ class GetUser:
 
     def __validate_phone(self) -> bool:
         """Check if the identifier is a valid phone number."""
-        return bool(re.fullmatch(PHONE_REGEX, self.identifier))
+        return bool(re.fullmatch(settings.PHONE_REGEX, self.identifier))
 
     async def get_user(self,account_type):
         """Fetch a user based on email, phone, or username and account type."""
@@ -106,22 +105,22 @@ async def authenticate_user(login_data:LoginData):
     return user
 
 async def create_access_token(data:dict,expire_time=None):
-    expiration = timedelta(minutes=expire_time) if expire_time else expire_delta
+    expiration = timedelta(minutes=expire_time) if expire_time else settings.expire_delta
     to_encode = data.copy()
     expire = datetime.now(timezone.utc)+ expiration
     to_encode.update({'exp':expire})
-    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM) # type: ignore
+    encoded_jwt = jwt.encode(to_encode,settings.SECRET_KEY,algorithm=settings.ALGORITHM) # type: ignore
     return encoded_jwt
 
 async def process_signup(user_data:BaseUserSchema):
     #NOTE -  Process OTP
-    await redis.hset(user_data_prefix.format(user_data.email),mapping=user_data.model_dump(exclude_none=True,exclude_unset=True))
+    await redis.hset(settings.USER_DATA_PREFIX.format(user_data.email),mapping=user_data.model_dump(exclude_none=True,exclude_unset=True)) # type: ignore
     
     logger.info('User data set to redis')
-    await redis.expire(user_data_prefix.format(user_data.email),timedelta(hours=2))
+    await redis.expire(settings.USER_DATA_PREFIX.format(user_data.email),timedelta(hours=2))
     
     logger.info('timer set on user data 2 hours')
-    send_set_otp = await create_send_otp(user_data.email)
+    send_set_otp = await create_send_otp(user_data.email) # type: ignore
     
     if not send_set_otp:
         raise HTTPException(
@@ -131,7 +130,7 @@ async def process_signup(user_data:BaseUserSchema):
     return user_data
     
 async def process_accnt_verification(email:EmailStr,db:AsyncSession):
-    user_data = await redis.hgetall(user_data_prefix.format(email)) # type: ignore
+    user_data = await redis.hgetall(settings.USER_DATA_PREFIX.format(email)) # type: ignore
     user_data ={key.decode():value.decode() for key,value in user_data.items()}
     if not user_data:
         raise HTTPException(
@@ -141,7 +140,7 @@ async def process_accnt_verification(email:EmailStr,db:AsyncSession):
     username = user_data.get('username',None) or f'{email.split('@')[0]}_{uuid.uuid4().hex[:8]}'
     #username = user_data.get('username',username)
     logger.info(f'{email}\'s Data retrieved from redis')
-    await redis.delete(user_data_prefix.format(email))
+    await redis.delete(settings.USER_DATA_PREFIX.format(email))
     user_data.pop('username',None)
     #NOTE - create Client
     new_client = Client(**user_data,account_type=AccountTypeEnum.client,username=username)

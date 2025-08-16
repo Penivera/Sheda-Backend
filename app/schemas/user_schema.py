@@ -3,12 +3,13 @@ from pydantic import (BaseModel,
                       AfterValidator,
                       EmailStr,
                       Field,AnyUrl)
-from  app.utils.enums import PhoneStr,AccountTypeEnum
+from  app.utils.enums import AccountTypeEnum
 from app.utils.utils import hash_password,decode_url
 from datetime import datetime
-from app.utils.enums import KycStatusEnum,UserRole
+from app.utils.enums import KycStatusEnum,UserRole,PhoneStr
 from typing import Union,Literal,List,Optional,Annotated
 from app.schemas.property_schema import PropertyShow,AvailabilityShow,ContractInDB,AppointmentShow
+
 
 #NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):

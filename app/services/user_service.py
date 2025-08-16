@@ -1,7 +1,7 @@
 from core.dependecies import TokenDependecy,InvalidCredentialsException,DBSession
 import jwt
 from jwt.exceptions import InvalidTokenError,ExpiredSignatureError
-from core.configs import SECRET_KEY,ALGORITHM,redis,logger,BLACKLIST_PREFIX
+from core.configs import settings,logger,redis
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user
 from core.database import AsyncSessionLocal
@@ -14,7 +14,7 @@ from pydantic import EmailStr
 from app.utils.utils import blacklist_token,token_exp_time
 
 async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
-    is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
+    is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
     logger.info(f'Blacklisted: {bool(is_blacklisted)}')
     if is_blacklisted:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
@@ -23,7 +23,7 @@ async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
     else:
         authenticate_value = 'Bearer'
     try:
-        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM]) # type: ignore
+        payload:dict = jwt.decode(token,settings.SECRET_KEY,algorithms=[settings.ALGORITHM]) # type: ignore
         identifier = payload.get('sub')
         logger.info(f'Identifier {identifier}')
         if not identifier:
@@ -81,7 +81,7 @@ async def active_client(current_user:Annotated[UserShow, Security(get_current_us
 ActiveClient = Annotated[UserInDB,Depends(active_client)]
 
 async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDependecy):
-    is_blacklisted = await redis.get(BLACKLIST_PREFIX.format(token))
+    is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
     logger.info(f'Blacklisted {bool(is_blacklisted)}')
     if is_blacklisted:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
@@ -90,7 +90,7 @@ async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDepen
     else:
         authenticate_value = 'Bearer'
     try:
-        payload:dict = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM]) # type: ignore
+        payload:dict = jwt.decode(token,settings.SECRET_KEY,algorithms=[settings.ALGORITHM]) # type: ignore
         email = payload.get('sub')
         logger.info(f'OTP Email {email}')
         if not email:

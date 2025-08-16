@@ -1,13 +1,13 @@
 from pydantic import BaseModel,Field
 from enum import Enum 
 from typing import Annotated
-from core.configs import PHONE_REGEX
+from core.configs import settings
 from typing import Literal
 #NOTE -  Custom datatype for Phone numbers
 PhoneStr = Annotated[str,Field(
     examples=['+2348078417891',],
     description='Phone number in international format',
-    pattern=PHONE_REGEX,
+    pattern=settings.PHONE_REGEX, # type: ignore
     min_length=10,
     max_length=15,
 )]
@@ -31,7 +31,7 @@ class PropertyTypeEnum(str,Enum):
     apartment = 'apartment'
     land = 'land'
     shortlet = 'shortlet'
-    shared_apartment = 'shared apartment'
+    shared_apartment = 'shared_apartment'
     
 class AppointmentStatEnum(str,Enum):
     pending = "pending"
