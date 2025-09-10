@@ -46,7 +46,7 @@ Retrieve a paginated list of available properties using cursor-based pagination.
 async def property_feed(filter_query:Annotated[FilterParams,Query()],current_user:ActiveUser,db:DBSession):
     return await filtered_property(filter_query,db)
 
-@router.get('/agent-profile{agent_id}',response_model=AgentFeed,status_code=status.HTTP_200_OK)
+@router.get('/agent-profile/{agent_id}',response_model=AgentFeed,status_code=status.HTTP_200_OK)
 async def agent_profile(agent_id:int,current_user:ActiveUser,db:DBSession):
     return await get_agent_by_id(agent_id,db)
 
