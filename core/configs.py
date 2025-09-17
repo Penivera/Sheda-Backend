@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 from datetime import timedelta
 import redis.asyncio as aioredis
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field,field_validator
+from pydantic import Field, field_validator
 import json
 
 
@@ -42,14 +42,14 @@ class Settings(BaseSettings):
     pwd_context: CryptContext = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     # General description
-    SIGN_UP_DESC:str = Field(
+    SIGN_UP_DESC: str = Field(
         default="Once accounts are created they are stored temporarily for 2 hours "
         "before deletion if email verification is not completed"
     )
 
     # Security
-    SECRET_KEY:str = Field(..., description="JWT secret key")
-    ALGORITHM:str = Field(default="HS256", description="JWT algorithm")
+    SECRET_KEY: str = Field(..., description="JWT secret key")
+    ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
         default=30, description="Access token expiration in minutes"
     )
@@ -58,12 +58,17 @@ class Settings(BaseSettings):
     )
 
     # Debug mode
-    DEBUG_MODE:bool = Field(default=False, description="Debug mode flag")
+    DEBUG_MODE: bool = Field(default=False, description="Debug mode flag")
 
     # Email settings
-    EMAIL:str = Field(..., description="Email address for sending emails")
-    APP_PASS:str = Field(..., description="App password for email")
-    EMAIL_HOST:str = Field(default="smtp.gmail.com", description="Email host")
+    SMTP_USERNAME: str = Field(..., description="Email address for sending emails")
+    SMTP_PASSWORD: str = Field(..., description="App password for email")
+    SMTP_HOST: str = Field(..., description="Email host")
+    SMTP_PORT: int = Field(default=2525, description="Email port")
+    SMTP_SEND_FROM_MAIL: str = Field(...,description="Email address for sending emails"
+    )
+    
+
 
     # Database
     DB_URL: str = Field(..., description="Database connection URL")
@@ -83,13 +88,13 @@ class Settings(BaseSettings):
 
     # API
     API_V_STR: str = Field(default="/api/v1", description="API version prefix")
-    
-    #SECTION Cloudinary data
-    
-    CLOUDINARY_NAME:str = Field(...,description="Cloudinary database name")
-    CLOUDINARY_API_KEY:str = Field(...,description="Cloudinary API key")
-    CLOUDINARY_API_SECRET:str = Field(...,description="Cloudinary Api Key")
-    CLOUDINARY_URL:str = Field(...,description="cloudinary url")
+
+    # SECTION Cloudinary data
+
+    CLOUDINARY_NAME: str = Field(..., description="Cloudinary database name")
+    CLOUDINARY_API_KEY: str = Field(..., description="Cloudinary API key")
+    CLOUDINARY_API_SECRET: str = Field(..., description="Cloudinary Api Key")
+    CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
     # Redis keys
     BLACKLIST_PREFIX: str = "blacklist:{}"
@@ -139,8 +144,6 @@ class Settings(BaseSettings):
     @property
     def token_url(self):
         return f"{self.API_V_STR}/auth/login"
-    
-
 
 
 # Instantiate settings

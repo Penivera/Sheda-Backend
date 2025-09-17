@@ -39,7 +39,6 @@ pydantic-extra-types==2.10.5
 pydantic-partial==0.7.0
 pydantic-settings==2.10.1
 pydantic_core==2.27.2
-pyemaillib==0.1.2
 Pygments==2.19.2
 PyJWT==2.10.1
 python-dotenv==1.0.1
