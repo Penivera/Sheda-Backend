@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.ext.asyncio import create_async_engine,async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from core.configs import settings
 
 if not settings.DB_URL:
@@ -7,19 +7,18 @@ if not settings.DB_URL:
 
 db_url = (
     settings.DB_URL.replace("postgresql://", "postgresql+asyncpg://")
-    if settings.DB_URL.startswith("postgresql://") # type: ignore
+    if settings.DB_URL.startswith("postgresql://")  # type: ignore
     else settings.DB_URL
 )
 
 # Apply check_same_thread only for SQLite
 connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
 
-    
 
-
-engine = create_async_engine(url=db_url,connect_args=connect_args)
+engine = create_async_engine(url=db_url, connect_args=connect_args)
 AsyncSessionLocal = async_sessionmaker(bind=engine)
 Base = declarative_base()
+
 
 async def get_db():
     db = AsyncSessionLocal()

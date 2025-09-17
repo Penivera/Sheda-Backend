@@ -1,2 +1,2 @@
 # Models package for the project
-from . import user,property,chat
+from . import user, property, chat

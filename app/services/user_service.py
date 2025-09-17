@@ -1,104 +1,132 @@
-from core.dependecies import TokenDependecy,InvalidCredentialsException,DBSession
+from core.dependecies import TokenDependecy, InvalidCredentialsException, DBSession
 import jwt
-from jwt.exceptions import InvalidTokenError,ExpiredSignatureError
-from core.configs import settings,logger,redis
+from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+from core.configs import settings, logger, redis
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user
-from core.database import AsyncSessionLocal
-from app.schemas.user_schema import UserShow,UserInDB
-from fastapi import Depends,HTTPException,status,Security
+from app.schemas.user_schema import UserShow, UserInDB
+from fastapi import Depends, HTTPException, status, Security
 from typing import Annotated
-from app.utils.enums import AccountTypeEnum,UserRole
+from app.utils.enums import UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
-from app.utils.utils import blacklist_token,token_exp_time
+from app.utils.utils import blacklist_token, token_exp_time
 
-async def get_current_user(security_scopes:SecurityScopes,token:TokenDependecy):
+
+async def get_current_user(security_scopes: SecurityScopes, token: TokenDependecy):
     is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
-    logger.info(f'Blacklisted: {bool(is_blacklisted)}')
+    logger.info(f"Blacklisted: {bool(is_blacklisted)}")
     if is_blacklisted:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+        )
     if security_scopes.scopes:
         authenticate_value = f'Bearer scope="{security_scopes.scope_str}"'
     else:
-        authenticate_value = 'Bearer'
+        authenticate_value = "Bearer"
     try:
-        payload:dict = jwt.decode(token,settings.SECRET_KEY,algorithms=[settings.ALGORITHM]) # type: ignore
-        identifier = payload.get('sub')
-        logger.info(f'Identifier {identifier}')
+        payload: dict = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )  # type: ignore
+        identifier = payload.get("sub")
+        logger.info(f"Identifier {identifier}")
         if not identifier:
             raise InvalidCredentialsException
-    except (InvalidTokenError,ExpiredSignatureError):
+    except (InvalidTokenError, ExpiredSignatureError):
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
-    
-    #NOTE ensure that OTP tokens are not used in this route
-    if 'otp' in token_scopes:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="OTP token not permitted in this route",
-                headers={"WWW-Authenticate": authenticate_value},
-            )
-    token_data = TokenData(scopes=token_scopes,sub=identifier)
-    user:UserInDB = await get_user(token_data.sub,token_scopes[0]) # type: ignore 
-    logger.info(f'User {user.username} fetched')
+
+    # NOTE ensure that OTP tokens are not used in this route
+    if "otp" in token_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="OTP token not permitted in this route",
+            headers={"WWW-Authenticate": authenticate_value},
+        )
+    token_data = TokenData(scopes=token_scopes, sub=identifier)
+    user: UserInDB = await get_user(token_data.sub, token_scopes[0])  # type: ignore
+    logger.info(f"User {user.username} fetched")
     if not user:
-        logger.error('User not found')
+        logger.error("User not found")
         raise InvalidCredentialsException
-    #NOTE - Scopes
-    if 'admin' in token_scopes and user.role == UserRole.ADMIN: #NOTE - Admin access
+    # NOTE - Scopes
+    if "admin" in token_scopes and user.role == UserRole.ADMIN:  # NOTE - Admin access
         return user
     for scope in security_scopes.scopes:
-        if scope not in token_data.scopes: # type: ignore # type: ignore # type: ignore
+        if scope not in token_data.scopes:  # type: ignore # type: ignore # type: ignore
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Not enough permissions",
                 headers={"WWW-Authenticate": authenticate_value},
             )
     return user
-    
-GetUser = Annotated[UserShow,Depends(get_current_user)]
 
-async def get_current_active_user(current_user:GetUser):
+
+GetUser = Annotated[UserShow, Depends(get_current_user)]
+
+
+async def get_current_active_user(current_user: GetUser):
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive User"
+        )
     return current_user
 
-ActiveUser = Annotated[UserInDB,Depends(get_current_active_user)]
 
-async def get_current_active_agent(current_user:Annotated[UserShow, Security(get_current_user, scopes=["agent"])]):
+ActiveUser = Annotated[UserInDB, Depends(get_current_active_user)]
+
+
+async def get_current_active_agent(
+    current_user: Annotated[UserShow, Security(get_current_user, scopes=["agent"])],
+):
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive User"
+        )
     return current_user
 
-ActiveAgent = Annotated[UserInDB,Depends(get_current_active_agent)]
 
-async def active_client(current_user:Annotated[UserShow, Security(get_current_user, scopes=["client"])]):
+ActiveAgent = Annotated[UserInDB, Depends(get_current_active_agent)]
+
+
+async def active_client(
+    current_user: Annotated[UserShow, Security(get_current_user, scopes=["client"])],
+):
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail='Inactive User')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive User"
+        )
     return current_user
 
-ActiveClient = Annotated[UserInDB,Depends(active_client)]
 
-async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDependecy):
+ActiveClient = Annotated[UserInDB, Depends(active_client)]
+
+
+async def get_verified_otp_email(
+    security_scopes: SecurityScopes, token: TokenDependecy
+):
     is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
-    logger.info(f'Blacklisted {bool(is_blacklisted)}')
+    logger.info(f"Blacklisted {bool(is_blacklisted)}")
     if is_blacklisted:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='Token has been revoked')
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+        )
     if security_scopes.scopes:
         authenticate_value = f'Bearer scope="{security_scopes.scope_str}"'
     else:
-        authenticate_value = 'Bearer'
+        authenticate_value = "Bearer"
     try:
-        payload:dict = jwt.decode(token,settings.SECRET_KEY,algorithms=[settings.ALGORITHM]) # type: ignore
-        email = payload.get('sub')
-        logger.info(f'OTP Email {email}')
+        payload: dict = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )  # type: ignore
+        email = payload.get("sub")
+        logger.info(f"OTP Email {email}")
         if not email:
             raise InvalidCredentialsException
-    except (InvalidTokenError,ExpiredSignatureError):
+    except (InvalidTokenError, ExpiredSignatureError):
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
-    
+
     for scope in security_scopes.scopes:
         if scope not in token_scopes:
             raise HTTPException(
@@ -107,38 +135,35 @@ async def get_verified_otp_email(security_scopes:SecurityScopes,token:TokenDepen
                 headers={"WWW-Authenticate": authenticate_value},
             )
     token_exp = await token_exp_time(token)
-    await blacklist_token(token,token_exp) # type: ignore
+    await blacklist_token(token, token_exp)  # type: ignore
     return email
-    
-    
+
 
 OtpVerification = Annotated[EmailStr, Security(get_verified_otp_email, scopes=["otp"])]
 
 
 async def require_admin_scope(
-    current_user: Annotated[UserInDB, Security(get_current_user, scopes=["admin"])]
+    current_user: Annotated[UserInDB, Security(get_current_user, scopes=["admin"])],
 ):
     if not current_user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive User"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive User"
         )
     # Check user role
     if UserRole.ADMIN != current_user.role:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
         )
 
     return current_user
 
+
 AdminUser = Annotated[UserInDB, Depends(require_admin_scope)]
-async def reset_password(user:UserInDB,db:DBSession,new_password:str):
+
+
+async def reset_password(user: UserInDB, db: DBSession, new_password: str):
     user.password = new_password
-    db.add(user) 
+    db.add(user)
     await db.commit()
     await db.refresh(user)
     return True
-    
-
-

@@ -10,6 +10,7 @@ from app.utils.enums import PropertyStatEnum
 
 scheduler = BackgroundScheduler()
 
+
 async def expire_contracts_task():
     """Task to check expired contracts and deactivate them"""
     async with AsyncSessionLocal() as db:
@@ -18,14 +19,14 @@ async def expire_contracts_task():
         # Fetch expired contracts
         stmt = select(Contract).where(
             Contract.end_date <= now,
-            Contract.is_active == True  # Only active contracts
+            Contract.is_active == True,  # Only active contracts
         )
         result = await db.execute(stmt)
         expired_contracts = result.scalars().all()
 
         for contract in expired_contracts:
             contract.is_active = False  # Deactivate contract
-            
+
             # Reset property status
             stmt = select(Property).where(Property.id == contract.property_id)
             property_result = await db.execute(stmt)
@@ -38,15 +39,14 @@ async def expire_contracts_task():
         await db.commit()
         await db.refresh(property)
         await db.refresh(contract)
-        logger.info('Database updates applied')
+        logger.info("Database updates applied")
+
 
 # Schedule task to run daily
 def start_scheduler():
     scheduler.add_job(
         func=lambda: asyncio.run(expire_contracts_task()),  # Run async function
         trigger="interval",
-        hours=24  #NOTE - Runs every 24 hours
+        hours=24,  # NOTE - Runs every 24 hours
     )
     scheduler.start()
-
-
