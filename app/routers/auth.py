@@ -12,7 +12,6 @@ from app.schemas.auth_schema import (
     LoginData,
     Token,
     OtpSchema,
-    OtpSend,
     PasswordReset,
     SwitchAccountType,
     TokenData,
@@ -91,8 +90,8 @@ async def reset_pwd(
 
 
 @router.post("/send-otp", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
-async def send_otp(payload: OtpSend):
-    otp_sent = await create_send_otp(payload.email)
+async def send_otp(current_user:ActiveUser):
+    otp_sent = await create_send_otp(current_user.email) # type: ignore
     if not otp_sent:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Unable to send OTP"
@@ -112,13 +111,13 @@ verify_otp_desc = """Token returned from this endpoint is valid for only `5 minu
     status_code=status.HTTP_200_OK,
     description=verify_otp_desc,
 )
-async def verify_otp_route(payload: OtpSchema):
+async def verify_otp_route(payload: OtpSchema,current_user:ActiveUser):
     verified = await verify_otp(**payload.model_dump())
     if not verified:
         raise VerificationException
     scopes = ["otp"]
     access_token = await create_access_token(
-        data=TokenData(sub=payload.email, scopes=scopes),
+        data=TokenData(sub=current_user.email, scopes=scopes), # type: ignore
         expire_time=5,  # type: ignore
     )
     return Token(access_token=access_token)

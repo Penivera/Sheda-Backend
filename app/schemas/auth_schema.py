@@ -37,13 +37,9 @@ class BuyerLogin(BaseModel):
 
 
 class OtpSchema(BaseModel):
-    email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]
     otp: Union[str, int]
 
 
-# NOTE -  For Resend otp
-class OtpSend(BaseModel):
-    email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]
 
 
 class PasswordReset(BaseModel):
