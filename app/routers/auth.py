@@ -138,7 +138,7 @@ async def refresh_token(current_user: ActiveUser, token: TokenDependecy):
     token_exp = await token_exp_time(token)
     await blacklist_token(token, token_exp)  # type: ignore
     new_token = await create_access_token(
-        data=TokenData(username=current_user.email, scopes=scopes)
+        data=TokenData(sub=current_user.email, scopes=scopes) # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
 
