@@ -8,7 +8,8 @@ from app.schemas.auth_schema import LoginData, Token, TokenData, SignUpShow
 from app.schemas.user_schema import UserInDB, UserCreate, UserShow
 from app.utils.utils import verify_password
 from datetime import datetime, timezone, timedelta
-from core.configs import settings, logger
+from core.configs import settings
+from core.logger import logger
 import jwt
 from sqlalchemy.exc import IntegrityError
 from app.schemas.user_schema import BaseUserSchema
@@ -179,6 +180,6 @@ async def switch_account(switch_to: AccountTypeEnum, current_user: UserInDB):
         )
     scopes = [switch_to]
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.email, scopes=scopes)
+        data=TokenData(sub=current_user.email, scopes=scopes) # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)

@@ -17,6 +17,7 @@ email_validator==2.2.0
 fastapi==0.116.1
 fastapi-cli==0.0.8
 fastapi-cloud-cli==0.1.5
+fastapi[standard]
 greenlet==3.1.1
 gunicorn==23.0.0
 h11==0.16.0

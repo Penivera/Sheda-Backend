@@ -1,6 +1,7 @@
 # from email.mime.application import MIMEApplication
 from random import randint
-from core.configs import settings, logger, redis
+from core.configs import settings, redis
+from core.logger import logger
 from core.dependecies import env
 
 from typing import Literal, Optional, List, Tuple, Union

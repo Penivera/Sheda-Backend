@@ -3,7 +3,7 @@ from app.routers import auth, listing, user, chat, media
 from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
-
+from core.middleware.error import ErrorHandlerMiddleware
 app = FastAPI(
     lifespan=lifespan,
     title="Sheda Solutions Backend",
@@ -40,6 +40,7 @@ app.add_middleware(
     allow_methods=["*"] if settings.DEBUG_MODE else settings.METHODS,
     allow_headers=["*"] if settings.DEBUG_MODE else settings.ALLOW_HEADERS,
 )
+app.add_middleware(ErrorHandlerMiddleware)
 
 
 @app.get("/health")

@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, status
 from app.services.user_service import ActiveUser, AdminUser
 
 from core.dependecies import FileUploadException
-from core.configs import logger
+from core.logger import logger
 from app.schemas.user_schema import FileShow, FileDir
 from typing import List
 from app.utils.utils import read_media_dir
@@ -30,13 +30,16 @@ async def upload_file(
         raise FileUploadException
     try:
         file_content = await file.read()
-        upload_result = uploader.upload(file_content,public_id=f"{type}/{current_user.id}/{file.filename}",overwrite=True,folder=type)
+        upload_result = uploader.upload(
+            file_content,
+            public_id=f"{type}/{current_user.id}/{file.filename}",
+            overwrite=True,
+            folder=type,
+        )
         return FileShow(file_url=upload_result.get("secure_url"))  # type: ignore
     except Exception as e:
         logger.error(f"File upload failed: {e}")
-        raise FileUploadException from e    # type: ignore
-
-
+        raise FileUploadException from e  # type: ignore
 
 
 # NOTE - Get the uploaded files

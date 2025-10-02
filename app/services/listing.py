@@ -21,7 +21,7 @@ from app.schemas.property_schema import (
 )
 from datetime import datetime, timezone, timedelta
 from app.utils.enums import AppointmentStatEnum, PropertyStatEnum, ListingTypeEnum
-from core.configs import logger
+from core.logger import logger
 
 
 async def create_property_listing(
@@ -103,7 +103,7 @@ async def get_agent_by_id(agent_id: int, db: AsyncSession):
 
 async def delist_property(property_id: int, db: AsyncSession, current_user: UserInDB):
     property: Property = next(
-        (property for property in current_user.listing if property.id == property_id),
+        (property for property in current_user.listing if property.id == property_id), # type: ignore
         None,
     )  # type: ignore
 
@@ -218,7 +218,7 @@ async def cancel_appointment_by_id(
     appointment: Appointment = next(
         (
             appointment
-            for appointment in current_user.appointments
+            for appointment in current_user.appointments # type: ignore
             if appointment.id == appointment_id
         ),
         None,
@@ -325,7 +325,7 @@ async def run_create_contract(
     end_date = None
     if contract_type == ListingTypeEnum.rent:
         end_date = datetime.now(timezone.utc) + timedelta(
-            days=30 * contract_data.rental_period_months
+            days=30 * contract_data.rental_period_months # type: ignore
         )  # type: ignore
 
     # Create contract

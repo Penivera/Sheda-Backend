@@ -2,7 +2,7 @@ from sqlalchemy.future import select
 from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
-from core.configs import logger
+from core.logger import logger
 from core.database import AsyncSessionLocal
 from app.models.property import Contract, Property
 from app.utils.enums import PropertyStatEnum

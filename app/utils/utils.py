@@ -1,4 +1,5 @@
-from core.configs import settings, logger, redis
+from core.configs import settings,redis
+from core.logger import logger
 import jwt
 from typing import Any
 from datetime import datetime, timezone

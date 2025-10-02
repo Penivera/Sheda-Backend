@@ -17,22 +17,11 @@ from app.models.property import AccountInfo
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from sqlalchemy.exc import IntegrityError
-from core.configs import logger
-from datetime import datetime
+from core.logger import logger
+import datetime
 
-timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S")
 
-
-# async def upload_image(file: UploadFile, identifier, upload_dir: FileDir) -> str:
-#     file_path = os.path.join(
-#         settings.MEDIA_DIR,
-#         upload_dir,
-#         f"id:{identifier}-{timestamp}-{Path(file.filename).suffix}",
-#     )  # type: ignore
-#     async with aiofiles.open(file_path, "wb") as buffer:
-#         while chunk := await file.read(1024):  # NOTE  Read in chunks of 1KB
-#             await buffer.write(chunk)
-#     return file_path
 
 
 async def update_pfp(user: BaseUserSchema, db: AsyncSession, file_path: str):
@@ -102,7 +91,7 @@ async def update_account_info(
     account_info = next(
         (
             account_info
-            for account_info in current_user.account_info # type: ignore
+            for account_info in current_user.account_info  # type: ignore
             if account_info.id == account_info_id
         ),
         None,
@@ -127,7 +116,7 @@ async def run_account_info_deletion(
     account_info = next(
         (
             account_info
-            for account_info in current_user.account_info
+            for account_info in current_user.account_info # type: ignore
             if account_info.id == account_info_id
         ),
         None,
