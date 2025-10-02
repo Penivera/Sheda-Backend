@@ -24,8 +24,7 @@ async def create_account(user_data: UserCreate, db: AsyncSession):
     new_client = Client(**user_data.model_dump(), account_type=AccountTypeEnum.client)
     new_agent = Agent(**user_data.model_dump(), account_type=AccountTypeEnum.agent)
     try:
-        db.add(new_client)
-        db.add(new_agent)
+        db.add_all([new_client, new_agent])
         await db.commit()
         await db.refresh(new_client)
         await db.refresh(new_agent)
