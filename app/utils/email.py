@@ -97,8 +97,7 @@ async def create_send_otp(email: str, length: int = 4) -> int:
         settings.TEMPLATES["otp"],
         otp=otp,
         expiry=settings.verification_expire_delta,
-        support_email=settings.SMTP_USERNAME,
-    )
+        support_email=settings.SMTP_SEND_FROM_MAIL)
     send_otp = await email_sender.send_email(
         text=otp_text, to_email=email, subject="OTP for Verification"
     )
