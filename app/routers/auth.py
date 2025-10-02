@@ -7,7 +7,7 @@ from app.services.auth import (
 )
 from app.services.auth import authenticate_user, create_access_token, switch_account
 from core.dependecies import PassWordRequestForm, VerificationException
-from core.dependecies import DBSession, TokenDependecy
+from core.dependecies import DBSession, HTTPBearerDependency
 from app.schemas.auth_schema import (
     LoginData,
     Token,
@@ -16,7 +16,8 @@ from app.schemas.auth_schema import (
     SwitchAccountType,
     TokenData,
 )
-from core.configs import settings, logger
+from core.configs import settings
+from core.logger import logger
 from app.services.user_service import (
     reset_password,
     OtpVerification,
@@ -67,8 +68,8 @@ async def login_for_access_token(form_data: PassWordRequestForm) -> Token:
 
 
 @router.post("/logout", status_code=status.HTTP_202_ACCEPTED)
-async def logout(current_user: GetUser, token: TokenDependecy):
-    return await process_logout(token)
+async def logout(current_user: GetUser, credential: HTTPBearerDependency):
+    return await process_logout(credential.credentials)
 
 
 @router.put(
@@ -133,10 +134,10 @@ The previous token will be `blacklisted`"""
     status_code=status.HTTP_200_OK,
     description=token_refresh_desc,
 )
-async def refresh_token(current_user: ActiveUser, token: TokenDependecy):
+async def refresh_token(current_user: ActiveUser, credential: HTTPBearerDependency):
     scopes = [current_user.account_type.value]  # type: ignore
-    token_exp = await token_exp_time(token)
-    await blacklist_token(token, token_exp)  # type: ignore
+    token_exp = await token_exp_time(credential.credentials)
+    await blacklist_token(credential.credentials, token_exp)  # type: ignore
     new_token = await create_access_token(
         data=TokenData(sub=current_user.email, scopes=scopes) # type: ignore
     )  # type: ignore
@@ -146,9 +147,9 @@ async def refresh_token(current_user: ActiveUser, token: TokenDependecy):
 # STUB - Switch account type
 @router.post("/switch-account", status_code=status.HTTP_200_OK, response_model=Token)
 async def switch_account_type(
-    token: TokenDependecy, payload: SwitchAccountType, current_user: ActiveUser
+    credential: HTTPBearerDependency, payload: SwitchAccountType, current_user: ActiveUser
 ):
     new_token = await switch_account(payload.switch_to, current_user)
-    exp_time = await token_exp_time(token)
-    await blacklist_token(token, exp_time)  # type: ignore
+    exp_time = await token_exp_time(credential.credentials)
+    await blacklist_token(credential.credentials, exp_time)  # type: ignore
     return new_token

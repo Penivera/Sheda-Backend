@@ -1,7 +1,8 @@
-from core.dependecies import TokenDependecy, InvalidCredentialsException, DBSession
+from core.dependecies import HTTPBearerDependency, InvalidCredentialsException, DBSession
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
-from core.configs import settings, logger, redis
+from core.configs import settings, redis
+from core.logger import logger
 from app.schemas.auth_schema import TokenData
 from app.services.auth import get_user
 from app.schemas.user_schema import UserShow, UserInDB
@@ -11,9 +12,18 @@ from app.utils.enums import UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
 from app.utils.utils import blacklist_token, token_exp_time
-
-
-async def get_current_user(security_scopes: SecurityScopes, token: TokenDependecy):
+from app.models.user import BaseUser
+from dataclasses import dataclass
+from typing import List
+@dataclass
+class UserContext:
+    user: BaseUser
+    scopes: List[str]
+    
+async def user_context(
+    security_scopes: SecurityScopes, credentials: HTTPBearerDependency
+) -> UserContext:
+    token = credentials.credentials
     is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
     logger.info(f"Blacklisted: {bool(is_blacklisted)}")
     if is_blacklisted:
@@ -36,13 +46,7 @@ async def get_current_user(security_scopes: SecurityScopes, token: TokenDependec
         raise InvalidCredentialsException
     token_scopes = payload.get("scopes", [])
 
-    # NOTE ensure that OTP tokens are not used in this route
-    if "otp" in token_scopes:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="OTP token not permitted in this route",
-            headers={"WWW-Authenticate": authenticate_value},
-        )
+
     token_data = TokenData(scopes=token_scopes, sub=identifier)
     user: UserInDB = await get_user(token_data.sub, token_scopes[0])  # type: ignore
     logger.info(f"User {user.username} fetched")
@@ -51,7 +55,7 @@ async def get_current_user(security_scopes: SecurityScopes, token: TokenDependec
         raise InvalidCredentialsException
     # NOTE - Scopes
     if "admin" in token_scopes and user.role == UserRole.ADMIN:  # NOTE - Admin access
-        return user
+        return UserContext(user=user, scopes=token_scopes)
     for scope in security_scopes.scopes:
         if scope not in token_data.scopes:  # type: ignore # type: ignore # type: ignore
             raise HTTPException(
@@ -59,7 +63,20 @@ async def get_current_user(security_scopes: SecurityScopes, token: TokenDependec
                 detail="Not enough permissions",
                 headers={"WWW-Authenticate": authenticate_value},
             )
-    return user
+    return UserContext(user=user, scopes=token_scopes)
+
+GetUserContext = Annotated[UserContext, Depends(user_context)]
+
+async def get_current_user(get_user_context: GetUserContext):
+        # NOTE ensure that OTP tokens are not used in this route
+    if "otp" in get_user_context.scopes:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="OTP token not permitted in this route",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return get_user_context.user
+
 
 
 GetUser = Annotated[UserShow, Depends(get_current_user)]
@@ -102,41 +119,13 @@ async def active_client(
 ActiveClient = Annotated[UserInDB, Depends(active_client)]
 
 
-async def get_verified_otp_email(
-    security_scopes: SecurityScopes, token: TokenDependecy
+async def get_verified_otp_email(user_context: GetUserContext,credentials: HTTPBearerDependency
 ):
-    is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
-    logger.info(f"Blacklisted {bool(is_blacklisted)}")
-    if is_blacklisted:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
-        )
-    if security_scopes.scopes:
-        authenticate_value = f'Bearer scope="{security_scopes.scope_str}"'
-    else:
-        authenticate_value = "Bearer"
-    try:
-        payload: dict = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )  # type: ignore
-        email = payload.get("sub")
-        logger.info(f"OTP Email {email}")
-        if not email:
-            raise InvalidCredentialsException
-    except (InvalidTokenError, ExpiredSignatureError):
-        raise InvalidCredentialsException
-    token_scopes = payload.get("scopes", [])
+    token = credentials.credentials
 
-    for scope in security_scopes.scopes:
-        if scope not in token_scopes:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Not enough permissions",
-                headers={"WWW-Authenticate": authenticate_value},
-            )
     token_exp = await token_exp_time(token)
     await blacklist_token(token, token_exp)  # type: ignore
-    return email
+    return user_context.user.email
 
 
 OtpVerification = Annotated[EmailStr, Security(get_verified_otp_email, scopes=["otp"])]
