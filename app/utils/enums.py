@@ -21,6 +21,10 @@ PhoneStr = Annotated[
 class AccountTypeEnum(str, Enum):
     client = "client"
     agent = "agent"
+    
+    @staticmethod
+    def to_list() -> list:
+        return [e.value for e in AccountTypeEnum]
 
 
 class KycStatusEnum(str, Enum):

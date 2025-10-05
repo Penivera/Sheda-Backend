@@ -9,6 +9,7 @@ from app.schemas.user_schema import UserInDB, UserCreate, UserShow
 from app.utils.utils import verify_password
 from datetime import datetime, timezone, timedelta
 from core.configs import settings
+from core.dependecies import DBSession
 from core.logger import logger
 import jwt
 from sqlalchemy.exc import IntegrityError
@@ -18,7 +19,8 @@ from app.utils.enums import AccountTypeEnum
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 from core.database import AsyncSessionLocal
 from pydantic import EmailStr
-
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import selectinload
 
 # NOTE -  Create agent
 async def create_account(user_data: UserCreate, db: AsyncSession):
@@ -41,67 +43,41 @@ async def create_account(user_data: UserCreate, db: AsyncSession):
         )
 
 
-class GetUser:
-    def __init__(self, identifier: str):
-        # self.db = db
-        self.identifier = identifier
 
-    def __check_email(self) -> bool:
-        """Check if the identifier is a valid email."""
-        try:
-            validate_email(self.identifier, check_deliverability=False)
-            return True
-        except EmailNotValidError:
-            return False
 
-    def __validate_phone(self) -> bool:
-        """Check if the identifier is a valid phone number."""
-        return bool(re.fullmatch(settings.PHONE_REGEX, self.identifier))
+async def get_user(identifier: str, db: AsyncSession,account_type=AccountTypeEnum.client) -> BaseUserSchema:
+    """Fetch a user based on email, phone, or username and account type."""
 
-    async def get_user(self, account_type):
-        """Fetch a user based on email, phone, or username and account type."""
-        async with AsyncSessionLocal() as db:
-            query = select(BaseUser)
-
-            if self.__check_email():
-                query = query.where(
-                    BaseUser.email == self.identifier,
-                    BaseUser.account_type == account_type,
+    query = (
+        select(BaseUser)
+        .where(
+            and_(
+                BaseUser.account_type == account_type,
+                or_(
+                    BaseUser.email == identifier,
+                    BaseUser.username == identifier,
+                    BaseUser.phone_number == identifier
                 )
-            elif self.__validate_phone():
-                query = query.where(
-                    BaseUser.phone_number == self.identifier,
-                    BaseUser.account_type == account_type,
-                )
-            else:
-                query = query.where(
-                    BaseUser.username == self.identifier,
-                    BaseUser.account_type == account_type,
-                )
-
-            result = await db.execute(query)
-            user = result.scalar_one_or_none()
-            if user:
-                user.last_seen = datetime.now()
-                await db.commit()
-                await db.refresh(user)
-                return user
-        logger.info("User not found")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+            )
         )
+    )
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    if user:
+        user.last_seen = datetime.now()
+        await db.commit()
+        await db.refresh(user)
+    return user or None
+    
 
 
-async def get_user(
-    identifier: str, account_type: AccountTypeEnum = AccountTypeEnum.client
-) -> BaseUserSchema:
-    user_fetcher = GetUser(identifier)
-    user: UserInDB = await user_fetcher.get_user(account_type)
-    return user
 
 
-async def authenticate_user(login_data: LoginData):
-    user: UserInDB = await get_user(login_data.username)  # type: ignore
+
+
+
+async def authenticate_user(login_data: LoginData,db: AsyncSession) -> UserInDB:
+    user: UserInDB = await get_user(login_data.username, db)  # type: ignore
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Username"

@@ -1,3 +1,4 @@
+from sqlalchemy.orm.relationships import _RelationshipDeclared
 from core.database import Base
 from sqlalchemy import (
     String,
@@ -12,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime
 from app.utils.enums import AccountTypeEnum, KycStatusEnum, UserRole
-from typing import Optional
+from typing import Optional,Any
 
 
 # NOTE - Base User Model
@@ -129,7 +130,7 @@ class Client(BaseUser):
         ForeignKey("user.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    properties = relationship("Property", back_populates="client", lazy="selectin")
+    properties: _RelationshipDeclared[Any] = relationship("Property", back_populates="client", lazy="selectin")
     appointments = relationship(
         "Appointment",
         back_populates="client",
@@ -185,6 +186,8 @@ class Agent(BaseUser):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
+
+
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }

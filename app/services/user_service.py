@@ -1,3 +1,4 @@
+from email.policy import HTTP
 from core.dependecies import HTTPBearerDependency, InvalidCredentialsException, DBSession
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
@@ -8,20 +9,21 @@ from app.services.auth import get_user
 from app.schemas.user_schema import UserShow, UserInDB
 from fastapi import Depends, HTTPException, status, Security
 from typing import Annotated
-from app.utils.enums import UserRole
+from app.utils.enums import AccountTypeEnum, UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
 from app.utils.utils import blacklist_token, token_exp_time
 from app.models.user import BaseUser
 from dataclasses import dataclass
 from typing import List
+
 @dataclass
 class UserContext:
     user: BaseUser
     scopes: List[str]
     
 async def user_context(
-    security_scopes: SecurityScopes, credentials: HTTPBearerDependency
+    security_scopes: SecurityScopes, credentials: HTTPBearerDependency, db: DBSession
 ) -> UserContext:
     token = credentials.credentials
     is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
@@ -43,17 +45,23 @@ async def user_context(
         if not identifier:
             raise InvalidCredentialsException
     except (InvalidTokenError, ExpiredSignatureError):
-        raise InvalidCredentialsException
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": authenticate_value},
+        )
     token_scopes = payload.get("scopes", [])
 
 
     token_data = TokenData(scopes=token_scopes, sub=identifier)
-    user: UserInDB = await get_user(token_data.sub, token_scopes[0])  # type: ignore
-    logger.info(f"User {user.username} fetched")
+    account_type = token_data.scopes[0] if token_data.scopes in AccountTypeEnum.to_list() else AccountTypeEnum.client # type: ignore
+    logger.info(f"Account type: {account_type}")
+    user: UserInDB = await get_user(token_data.sub, db, account_type) # type: ignore
     if not user:
-        logger.error("User not found")
+        logger.error(f"User not found")
         raise InvalidCredentialsException
     # NOTE - Scopes
+    logger.info(f"User {user.username} fetched")
     if "admin" in token_scopes and user.role == UserRole.ADMIN:  # NOTE - Admin access
         return UserContext(user=user, scopes=token_scopes)
     for scope in security_scopes.scopes:
