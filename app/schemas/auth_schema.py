@@ -48,3 +48,10 @@ class PasswordReset(BaseModel):
 
 class SwitchAccountType(BaseModel):
     switch_to: Annotated[AccountTypeEnum, Field(default=AccountTypeEnum.agent)]
+
+class ForgotPasswordVerifyRequest(BaseModel):
+    email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]
+    otp: str
+
+class ForgotPasswordResetRequest(BaseModel):
+    email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]

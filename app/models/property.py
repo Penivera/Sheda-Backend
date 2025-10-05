@@ -25,8 +25,12 @@ class Property(Base):
     __tablename__ = "property"
     id: Mapped[int] = mapped_column("id", primary_key=True, autoincrement=True)
     agent_id: Mapped[int] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("agent.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("client.id", ondelete="SET NULL"),
+        nullable=True,
     )
     title: Mapped[str] = mapped_column(
         String(100),
