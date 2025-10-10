@@ -149,9 +149,9 @@ async def refresh_token(current_user: ActiveUser, credential: HTTPBearerDependen
 # STUB - Switch account type
 @router.post("/switch-account", status_code=status.HTTP_200_OK, response_model=Token)
 async def switch_account_type(
-    credential: HTTPBearerDependency, payload: SwitchAccountType, current_user: ActiveUser
+    credential: HTTPBearerDependency, payload: SwitchAccountType, current_user: ActiveUser, db:DBSession
 ):
-    new_token = await switch_account(payload.switch_to, current_user) # type: ignore
+    new_token = await switch_account(payload.switch_to, current_user, db) # type: ignore
     exp_time = await token_exp_time(credential.credentials)
     await blacklist_token(credential.credentials, exp_time)  # type: ignore
     return new_token

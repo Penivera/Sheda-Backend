@@ -22,6 +22,7 @@ from pydantic import EmailStr
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import selectinload
 
+
 # NOTE -  Create agent
 async def create_account(user_data: UserCreate, db: AsyncSession):
     new_client = Client(**user_data.model_dump(), account_type=AccountTypeEnum.client)
@@ -43,40 +44,44 @@ async def create_account(user_data: UserCreate, db: AsyncSession):
         )
 
 
-
-
-async def get_user(identifier: str, db: AsyncSession,account_type=AccountTypeEnum.client) -> BaseUserSchema:
+async def get_user(
+    identifier: str, db: AsyncSession, account_type=AccountTypeEnum.client
+) -> BaseUserSchema:
     """Fetch a user based on email, phone, or username and account type."""
+
+    # Start with common options for BaseUser
+    options = [selectinload(BaseUser.account_info)]
+
+    # Conditionally add agent-specific options
+    if account_type == AccountTypeEnum.agent:
+        options.append(selectinload(Agent.listings))
+        options.append(selectinload(Agent.availabilities))
 
     query = (
         select(BaseUser)
+        .options(*options)
         .where(
             and_(
                 BaseUser.account_type == account_type,
                 or_(
                     BaseUser.email == identifier,
                     BaseUser.username == identifier,
-                    BaseUser.phone_number == identifier
-                )
+                    BaseUser.phone_number == identifier,
+                ),
             )
         )
     )
     result = await db.execute(query)
     user = result.scalar_one_or_none()
-    if user:
-        user.last_seen = datetime.now()
-        await db.commit()
-        await db.refresh(user)
-    return user or None
-    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    user.last_seen = datetime.now()
+    return user
 
 
-
-
-
-
-
-async def authenticate_user(login_data: LoginData,db: AsyncSession) -> UserInDB:
+async def authenticate_user(login_data: LoginData, db: AsyncSession) -> UserInDB:
     user: UserInDB = await get_user(login_data.username, db)  # type: ignore
     if not user:
         raise HTTPException(
@@ -147,8 +152,10 @@ async def process_logout(token: str):
 
 
 # NOTE -  Return new token with the neccesarry account type
-async def switch_account(switch_to: AccountTypeEnum, current_user: UserInDB):
-    user = await get_user(current_user.email, switch_to)  # type: ignore
+async def switch_account(
+    switch_to: AccountTypeEnum, current_user: UserInDB, db: AsyncSession
+):
+    user = await get_user(current_user.email, db, switch_to)  # type: ignore
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -156,6 +163,6 @@ async def switch_account(switch_to: AccountTypeEnum, current_user: UserInDB):
         )
     scopes = [switch_to]
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.email, scopes=scopes) # type: ignore
+        data=TokenData(sub=current_user.email, scopes=scopes)  # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
