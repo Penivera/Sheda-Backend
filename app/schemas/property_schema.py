@@ -95,11 +95,11 @@ class DeleteProperty(BaseModel):
 
 
 class AgentAvailabilitySchema(BaseModel):
-    weekday: Annotated[str, Field(..., example="MONDAY")]  # Store as uppercase string
+    weekday: Annotated[str, Field(..., examples=["MONDAY"])]  # Store as uppercase string
     start_time: Annotated[
-        time, Field(..., example="09:00", description="HH:MM format")
+        time, Field(..., examples=["09:00"], description="HH:MM format")
     ]  # HH:MM format
-    end_time: Annotated[time, Field(..., example="17:00")]
+    end_time: Annotated[time, Field(..., examples=["17:00"])]
 
 
 class AppointmentSchema(BaseModel):
@@ -126,6 +126,9 @@ class AppointmentShow(BaseModel):
     status: AppointmentStatEnum
     created_at: datetime
     updated_at: datetime
+    
+    class Config:
+        from_attributes= True
 
 
 class ContractInDB(BaseModel):

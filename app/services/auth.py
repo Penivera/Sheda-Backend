@@ -78,6 +78,7 @@ async def get_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     user.last_seen = datetime.now()
+    await db.refresh(user)
     return user
 
 
