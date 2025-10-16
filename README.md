@@ -177,74 +177,77 @@ This is the backend system for the real estate application. It handles user auth
 ## Scheduled Jobs (APScheduler)
 - Runs **every 24 hours** to check for expired contracts.
 - Marks contracts as inactive and updates property availability.
-```markdown
-## WebSocket for Real-time Chat  
 
-The chat system enables real-time messaging using WebSockets. Below is how to interact with it.  
+## WebSocket for Real-time Chat
 
-### **WebSocket Endpoint**  
+The chat system enables real-time messaging using WebSockets.
 
-- **WebSocket Chat:**
-  - Endpoint: `/api/v1/chat/ws`
-  - Authentication: Pass the JWT access token as a query parameter: `?token=<your_token>`
-  - The user is identified via the token, so `sender_id` is implicit.
-  - Message format (sending): `{ "receiver_id": <user_id>, "message": "..." }`
-  - Message format (receiving): `{ "sender_id": <user_id>, "message": "..." }`
+### **WebSocket Endpoint**
 
-## Project-Specific Patterns
-
-- **Role & Scope System:**
-// ...existing code...
-- 
-
-### **Message Format**  
-
-Messages sent to the WebSocket should follow this **JSON format**:  
-
-```json
-{
-  "sender_id": 1,
-  "receiver_id": 2,
-  "message": "Hello!"
-}
+The WebSocket endpoint is available at:
+```
+ws://<your_domain>/api/v1/chat/ws?token=<your_jwt_token>
+```
+Example for local development:
+```
+ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### **Receiving Messages**  
+### **Authentication & Connection**
 
-Incoming messages from the WebSocket are structured as:  
+- Authentication is handled via a JWT `token` passed as a query parameter.
+- The user is identified by the token, so `sender_id` is implicit in outgoing messages.
 
-```json
-{
-  "sender_id": 1,
-  "message": "Hello!"
-}
+### **Message Format**
+
+- **Sending a message:** The client sends a JSON object with `receiver_id` and `message`.
+  ```json
+  {
+    "receiver_id": 123,
+    "message": "Hello there!"
+  }
+  ```
+
+- **Receiving a message:** The server sends a detailed JSON payload to the recipient.
+  ```json
+  {
+    "id": 1,
+    "sender_info": { "id": 456, "username": "sender_name", "avatar_url": "url/to/pic.jpg" },
+    "receiver_id": 123,
+    "message": "Hello there!",
+    "created_at": "2025-10-16T10:00:00.000Z"
+  }
+  ```
+
+### **Chat History Endpoint**
+
+To retrieve paginated chat history with a specific user, make a **GET** request to:
+```
+GET /api/v1/chat/chat-history/{other_user_id}?offset=0&limit=50
 ```
 
-### **Chat History Endpoint**  
+- **`other_user_id`** (path parameter): The ID of the user you are fetching history with.
+- **`offset`** (query parameter, optional): Number of messages to skip. Default is `0`.
+- **`limit`** (query parameter, optional): Number of messages to return. Default is `100`.
 
-To retrieve past messages, make a **GET** request to:  
-
-```
-GET https://sheda-backend-production.up.railway.app/chat-history
-```
-
-#### **Response Format**  
+#### **Response Format**
 
 ```json
 [
   {
-    "sender_id": 1,
-    "receiver_id": 2,
-    "message": "Hello!",
-    "timestamp": "2025-03-17T12:34:56Z"
+    "id": 1,
+    "sender_id": 456,
+    "receiver_id": 123,
+    "message": "Hello there!",
+    "timestamp": "2025-10-16T10:00:00.000Z"
   }
 ]
 ```
 
-### **Disconnection Handling**  
+### **Disconnection Handling**
 
-When a user disconnects, their WebSocket session is removed from active connections, ensuring clean resource management.  
-```
+When a user disconnects, their WebSocket session is removed from active connections, ensuring clean resource management.
+
 ## Deployment
 - Hosted on **Railway**.
 - Uses PostgreSQL for the database.
