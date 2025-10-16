@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status, Query
-from app.services.user_service import ActiveUser, ActiveClient, ActiveAgent
+from app.models.user import BaseUser
+from app.services.user_service import ActiveUser, ActiveClient, ActiveAgent, ActiveVerifiedUser
 from app.services.profile import (
     update_user,
     create_new_payment_info,
@@ -52,6 +53,11 @@ router = APIRouter(
 )
 async def get_me(current_user: ActiveUser):
     return current_user
+
+@router.get("/{user_id}",response_model=UserShow,status_code=status.HTTP_200_OK)
+async def get_user_by_id(user_id:int,current_user:ActiveVerifiedUser,db:DBSession):
+    user = await db.get(BaseUser,user_id)
+    return user
 
 
 update_desc = """pick the target field and exclude the rest,

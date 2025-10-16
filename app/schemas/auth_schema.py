@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, BeforeValidator
+from pydantic import BaseModel, EmailStr, Field, BeforeValidator,AfterValidator
 from app.utils.enums import PhoneStr, AccountTypeEnum
 from typing import Union, Optional, Annotated
 from app.utils.utils import hash_password
@@ -6,7 +6,7 @@ from typing import List
 
 
 class TokenData(BaseModel):
-    sub: Optional[Union[str, EmailStr, PhoneStr]]
+    sub: Annotated[Optional[Union[str, EmailStr, PhoneStr,int]], AfterValidator(str)]
     scopes: Optional[List[Union[str, None]]] = []
 
 

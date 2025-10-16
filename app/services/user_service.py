@@ -87,7 +87,7 @@ async def get_current_user(get_user_context: GetUserContext):
 
 
 
-GetUser = Annotated[UserShow, Depends(get_current_user)]
+GetUser = Annotated[BaseUser, Depends(get_current_user)]
 
 
 async def get_current_active_user(current_user: GetUser):
@@ -98,7 +98,17 @@ async def get_current_active_user(current_user: GetUser):
     return current_user
 
 
-ActiveUser = Annotated[UserInDB, Depends(get_current_active_user)]
+ActiveUser = Annotated[BaseUser, Depends(get_current_active_user)]
+
+async def get_active_verified_user(current_user:ActiveUser):
+    if not current_user.verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unverified user"
+        )
+    return current_user
+
+ActiveVerifiedUser = Annotated[BaseUser,Depends(get_active_verified_user)]
 
 
 async def get_current_active_agent(
@@ -111,11 +121,11 @@ async def get_current_active_agent(
     return current_user
 
 
-ActiveAgent = Annotated[UserInDB, Depends(get_current_active_agent)]
+ActiveAgent = Annotated[BaseUser, Depends(get_current_active_agent)]
 
 
 async def active_client(
-    current_user: Annotated[UserShow, Security(get_current_user, scopes=["client"])],
+    current_user: Annotated[BaseUser, Security(get_current_user, scopes=["client"])],
 ):
     if not current_user.is_active:
         raise HTTPException(
@@ -133,14 +143,14 @@ async def get_verified_otp_email(user_context: GetUserContext,credentials: HTTPB
 
     token_exp = await token_exp_time(token)
     await blacklist_token(token, token_exp)  # type: ignore
-    return user_context.user.email
+    return user_context.user
 
 
-OtpVerification = Annotated[EmailStr, Security(get_verified_otp_email, scopes=["otp"])]
+OtpVerification = Annotated[BaseUser, Security(get_verified_otp_email, scopes=["otp"])]
 
 
 async def require_admin_scope(
-    current_user: Annotated[UserInDB, Security(get_current_user, scopes=["admin"])],
+    current_user: Annotated[BaseUser, Security(get_current_user, scopes=["admin"])],
 ):
     if not current_user.is_active:
         raise HTTPException(
@@ -155,8 +165,32 @@ async def require_admin_scope(
     return current_user
 
 
-AdminUser = Annotated[UserInDB, Depends(require_admin_scope)]
+AdminUser = Annotated[BaseUser, Depends(require_admin_scope)]
 
+from fastapi import WebSocket, Query
+async def get_websocket_user(websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None):
+    
+    logger.info(f"Extracted Token: {token}")
+    try:
+        payload: dict = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM] # type: ignore
+        )  # type: ignore
+        identifier = payload.get("sub")
+        if not identifier:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        user: UserInDB = await get_user(identifier,db) # type: ignore
+        logger.info(f"{user.email} fetched")
+        if not user:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        if not user.is_active or not user.verified:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return user
+    except (InvalidTokenError, ExpiredSignatureError) as e:
+        logger.error(f"an Error occurred\n{e}")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return None
+    
+ActiveVerifiedWSUser = Annotated[BaseUser,Depends(get_websocket_user)]
 
 async def reset_password(user: UserInDB, db: DBSession, new_password: str):
     user.password = new_password
