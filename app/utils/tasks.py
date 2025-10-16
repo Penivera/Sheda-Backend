@@ -1,6 +1,7 @@
 from sqlalchemy.future import select
 from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 from core.logger import logger
 from core.database import AsyncSessionLocal
@@ -8,7 +9,7 @@ from app.models.property import Contract, Property
 from app.utils.enums import PropertyStatEnum
 
 
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 
 async def expire_contracts_task():
@@ -34,8 +35,6 @@ async def expire_contracts_task():
 
             if property:
                 property.status = PropertyStatEnum.available  # Mark as available again
-        db.add(property)
-        db.add(contract)
         await db.commit()
         await db.refresh(property)
         await db.refresh(contract)
@@ -45,7 +44,7 @@ async def expire_contracts_task():
 # Schedule task to run daily
 def start_scheduler():
     scheduler.add_job(
-        func=lambda: asyncio.run(expire_contracts_task()),  # Run async function
+        expire_contracts_task,  # Run async function
         trigger="interval",
         hours=24,  # NOTE - Runs every 24 hours
     )
