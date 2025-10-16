@@ -175,6 +175,7 @@ This is the backend system for the real estate application. It handles user auth
 - `message` – Text content.
 
 ## Scheduled Jobs (APScheduler)
+
 - Runs **every 24 hours** to check for expired contracts.
 - Marks contracts as inactive and updates property availability.
 
@@ -185,10 +186,13 @@ The chat system enables real-time messaging using WebSockets.
 ### **WebSocket Endpoint**
 
 The WebSocket endpoint is available at:
+
 ```
 ws://<your_domain>/api/v1/chat/ws?token=<your_jwt_token>
 ```
+
 Example for local development:
+
 ```
 ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -201,6 +205,7 @@ ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### **Message Format**
 
 - **Sending a message:** The client sends a JSON object with `receiver_id` and `message`.
+
   ```json
   {
     "receiver_id": 123,
@@ -209,6 +214,7 @@ ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
   ```
 
 - **Receiving a message:** The server sends a detailed JSON payload to the recipient.
+
   ```json
   {
     "id": 1,
@@ -222,6 +228,7 @@ ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### **Chat History Endpoint**
 
 To retrieve paginated chat history with a specific user, make a **GET** request to:
+
 ```
 GET /api/v1/chat/chat-history/{other_user_id}?offset=0&limit=50
 ```
@@ -249,6 +256,7 @@ GET /api/v1/chat/chat-history/{other_user_id}?offset=0&limit=50
 When a user disconnects, their WebSocket session is removed from active connections, ensuring clean resource management.
 
 ## Deployment
+
 - Hosted on **Railway**.
 - Uses PostgreSQL for the database.
 - APScheduler runs within the FastAPI application.
@@ -358,8 +366,6 @@ The following scopes define what a user can do within the system. Scopes are emb
 >
 > * User `role` values: `user`, `admin`, `moderator`
 > * User `user_type` values: `client`, `agent`
-
----
 
 
 
