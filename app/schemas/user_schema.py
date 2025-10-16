@@ -50,6 +50,7 @@ class AccountInfoShow(AccountInfoBase):
 
 
 class UserShow(BaseUserSchema):
+    id:int
     agency_name: Optional[str] = None
     is_active: Optional[bool] = None
     is_deleted: Optional[bool] = None

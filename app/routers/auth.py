@@ -1,9 +1,9 @@
 from fastapi import APIRouter, status, HTTPException
+from app.models.user import BaseUser
 from app.schemas.user_schema import UserCreate, UserInDB
 from app.services.auth import (
     process_signup,
     process_logout,
-    verify_user as process_accnt_verification,
     get_user
 )
 from app.services.auth import authenticate_user, create_access_token, switch_account
@@ -53,19 +53,28 @@ async def signup_user(request: UserCreate, db: DBSession):
 @router.post(
     "/verify-account", response_model=Token, status_code=status.HTTP_201_CREATED
 )
-async def verify_account(email: OtpVerification, db: DBSession):
-    return await process_accnt_verification(email, db)
+async def verify_account(current_user: OtpVerification, db: DBSession):
+    refresh_user = await db.get(BaseUser,current_user.id)
+    refresh_user.verified = True # type: ignore
+    db.add(refresh_user)
+    await db.commit()
+
+    scopes = [current_user.account_type.value, current_user.role.value]  # type: ignore
+    access_token = await create_access_token(
+        data=TokenData(sub=current_user.id, scopes=scopes) # type: ignore
+    )
+    return Token(access_token=access_token)
+    
 
 
 # NOTE - Login Route
 @router.post("/login", response_model=Token)
 async def login_for_access_token(form_data: PassWordRequestForm, db: DBSession) -> Token:
-    login_data = LoginData(**form_data.__dict__)
+    login_data = LoginData(**form_data.__dict__) # type: ignore
     user: UserInDB = await authenticate_user(login_data, db)
-    logger.info(form_data.scopes)
     scopes = [user.account_type.value, user.role.value]  # type: ignore
     access_token = await create_access_token(
-        data=TokenData(sub=user.email, scopes=scopes),  # type: ignore
+        data=TokenData(sub=user.id, scopes=scopes),  # type: ignore
     )
     return Token(access_token=access_token)
 
@@ -88,7 +97,7 @@ async def reset_pwd(
 ):
     await reset_password(current_user, db, payload.password)
     scopes = [current_user.account_type.value]  # type: ignore
-    token = await create_access_token(data=TokenData(sub=current_user.email, scopes=scopes))  # type: ignore
+    token = await create_access_token(data=TokenData(sub=current_user.id, scopes=scopes))  # type: ignore
     return Token(access_token=token)
 
 
@@ -115,12 +124,12 @@ verify_otp_desc = """Token returned from this endpoint is valid for only `5 minu
     description=verify_otp_desc,
 )
 async def verify_otp_route(payload: OtpSchema,current_user:ActiveUser):
-    verified = await verify_otp(**payload.model_dump())
+    verified = await verify_otp( **payload.model_dump(),email=current_user.email) # type: ignore
     if not verified:
         raise VerificationException
     scopes = ["otp"]
     access_token = await create_access_token(
-        data=TokenData(sub=current_user.email, scopes=scopes), # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes), # type: ignore
         expire_time=5,  # type: ignore
     )
     return Token(access_token=access_token)
@@ -141,7 +150,7 @@ async def refresh_token(current_user: ActiveUser, credential: HTTPBearerDependen
     token_exp = await token_exp_time(credential.credentials)
     await blacklist_token(credential.credentials, token_exp)  # type: ignore
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.email, scopes=scopes) # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes) # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
 
@@ -176,5 +185,5 @@ async def verify_forgot_password(payload: ForgotPasswordVerifyRequest, db: DBSes
     verified = await verify_otp(payload.otp, user.email) # type: ignore
     if not verified:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-    token = await create_access_token(data=TokenData(sub=user.email), expire_time=5) # type: ignore
+    token = await create_access_token(data=TokenData(sub=user.id), expire_time=5) # type: ignore
     return Token(access_token=token)

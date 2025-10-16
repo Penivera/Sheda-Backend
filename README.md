@@ -184,14 +184,18 @@ The chat system enables real-time messaging using WebSockets. Below is how to in
 
 ### **WebSocket Endpoint**  
 
-```
-ws://https://sheda-backend-production.up.railway.app/chat/{user_id}
-```
+- **WebSocket Chat:**
+  - Endpoint: `/api/v1/chat/ws`
+  - Authentication: Pass the JWT access token as a query parameter: `?token=<your_token>`
+  - The user is identified via the token, so `sender_id` is implicit.
+  - Message format (sending): `{ "receiver_id": <user_id>, "message": "..." }`
+  - Message format (receiving): `{ "sender_id": <user_id>, "message": "..." }`
 
-### **Authentication & Connection**  
+## Project-Specific Patterns
 
-- The `{user_id}` should be replaced with the authenticated user's ID.  
-- Clients must establish a WebSocket connection to send and receive messages in real time.  
+- **Role & Scope System:**
+// ...existing code...
+- 
 
 ### **Message Format**  
 

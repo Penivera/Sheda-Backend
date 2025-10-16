@@ -56,6 +56,13 @@ async def get_user(
     if account_type == AccountTypeEnum.agent:
         options.append(selectinload(Agent.listings))
         options.append(selectinload(Agent.availabilities))
+    conditions = [
+    BaseUser.email == identifier,
+    BaseUser.username == identifier,
+    BaseUser.phone_number == identifier,
+    ]
+    if identifier.isdigit():
+        conditions.append(BaseUser.id == int(identifier))
 
     query = (
         select(BaseUser)
@@ -63,11 +70,7 @@ async def get_user(
         .where(
             and_(
                 BaseUser.account_type == account_type,
-                or_(
-                    BaseUser.email == identifier,
-                    BaseUser.username == identifier,
-                    BaseUser.phone_number == identifier,
-                ),
+                or_(*conditions),
             )
         )
     )
@@ -110,7 +113,7 @@ async def create_access_token(data: TokenData, expire_time=None):
 
 async def process_signup(user_data: UserCreate, db: AsyncSession):
     new_user = await create_account(user_data, db)
-    token_data = TokenData(sub=new_user.email, scopes=[new_user.account_type.value])  # type: ignore
+    token_data = TokenData(sub=new_user.id, scopes=[new_user.account_type.value])  # type: ignore
     access_token = await create_access_token(data=token_data)
     return SignUpShow(
         token=Token(access_token=access_token),
@@ -118,22 +121,7 @@ async def process_signup(user_data: UserCreate, db: AsyncSession):
     )
 
 
-async def verify_user(email: EmailStr, db: AsyncSession):
-    # Fetch the user
-    result = await db.execute(select(BaseUser).where(BaseUser.email == email))
-    user = result.scalar_one_or_none()
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    # NOTE - Update the verified field
-    user.verified = True
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user
 
 
 async def process_logout(token: str):
@@ -164,6 +152,6 @@ async def switch_account(
         )
     scopes = [switch_to]
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.email, scopes=scopes)  # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes)  # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
