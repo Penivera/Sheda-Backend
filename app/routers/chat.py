@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status,Query
 from app.models.chat import ChatMessage
 from app.models.user import BaseUser
 from app.schemas.chat import ChatMessageSchema
@@ -115,8 +115,10 @@ async def websocket_chat(
     response_model=List[ChatMessageSchema],
     status_code=status.HTTP_200_OK,
 )
-async def chat_history(current_user: ActiveUser, db: DBSession):
-    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id)
+async def chat_history(current_user: ActiveUser, db: DBSession,
+                       offset: int = Query(0, ge=0, description="Number of messages to skip"),
+    limit: int = Query(100, ge=1, le=200, description="Number of messages to return"),):
+    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(offset).limit(limit)
     result: Result = await db.execute(query)
     chats = result.scalars().all()
     return chats
