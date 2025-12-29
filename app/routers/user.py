@@ -1,6 +1,11 @@
 from fastapi import APIRouter, status, Query
 from app.models.user import BaseUser
-from app.services.user_service import ActiveUser, ActiveClient, ActiveAgent, ActiveVerifiedUser
+from app.services.user_service import (
+    ActiveUser,
+    ActiveVerifiedClient,
+    ActiveAgent,
+    ActiveVerifiedUser,
+)
 from app.services.profile import (
     update_user,
     create_new_payment_info,
@@ -54,9 +59,10 @@ router = APIRouter(
 async def get_me(current_user: ActiveUser):
     return current_user
 
-@router.get("/{user_id}",response_model=UserShow,status_code=status.HTTP_200_OK)
-async def get_user_by_id(user_id:int,current_user:ActiveVerifiedUser,db:DBSession):
-    user = await db.get(BaseUser,user_id)
+
+@router.get("/{user_id}", response_model=UserShow, status_code=status.HTTP_200_OK)
+async def get_user_by_id(user_id: int, current_user: ActiveVerifiedUser, db: DBSession):
+    user = await db.get(BaseUser, user_id)
     return user
 
 
@@ -71,7 +77,9 @@ the server will dynamically update,all fields are optional"""
     description=update_desc,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def update_me(current_user: ActiveUser, update_data: UserUpdate, db: DBSession) -> ActiveUser:
+async def update_me(
+    current_user: ActiveUser, update_data: UserUpdate, db: DBSession
+) -> ActiveUser:
     return await update_user(update_data, db, current_user)
 
 
@@ -90,7 +98,7 @@ async def delete_account(current_user: ActiveUser, db: DBSession):
     "/book-appointment", status_code=status.HTTP_200_OK, response_model=AppointmentShow
 )
 async def book_appointment(
-    current_user: ActiveClient, payload: AppointmentSchema, db: DBSession
+    current_user: ActiveVerifiedClient, payload: AppointmentSchema, db: DBSession
 ):
     return await run_book_appointment(
         client_id=current_user.id,
@@ -130,7 +138,7 @@ async def create_payment_info(
     status_code=status.HTTP_200_OK,
     response_model=List[AccountInfoShow],
 )
-async def get_payment_info( # type: ignore
+async def get_payment_info(  # type: ignore
     *, user_id: Optional[int] = Query(None), db: DBSession, current_user: ActiveUser
 ):  # type: ignore # type: ignore
     user_id = user_id or current_user.id
@@ -211,7 +219,9 @@ async def update_schedule(
     status_code=status.HTTP_200_OK,
     response_model=dict,
 )
-async def confirm_client_payment(contract_id: int, db: DBSession, user: ActiveClient):
+async def confirm_client_payment(
+    contract_id: int, db: DBSession, user: ActiveVerifiedClient
+):
     return await confirm_payment(contract_id, db)
 
 
@@ -228,6 +238,6 @@ async def approve_payment(contract_id: int, db: DBSession, user: ActiveAgent):
     "/contracts/", response_model=ContractResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_contract(
-    data: ContractCreate, current_user: ActiveClient, db: DBSession
+    data: ContractCreate, current_user: ActiveVerifiedClient, db: DBSession
 ):
     return await run_create_contract(data, db, current_user)
