@@ -62,9 +62,10 @@ class WeekDayEnum(str, Enum):
 
 
 class PropertyStatEnum(str, Enum):
+    available = "available"
     sold = "sold"
     rented = "rented"
-    available = "available"
+    
 
 
 class UserRole(str, Enum):
