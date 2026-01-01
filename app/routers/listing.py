@@ -47,18 +47,6 @@ async def get_my_listing(current_user: ActiveAgent, db: DBSession):
     return await get_user_properties(current_user, db)
 
 
-@router.get(
-    "/{property_id}",
-    response_model=PropertyShow,
-    status_code=status.HTTP_200_OK,
-    description="Get a single property by its ID",
-)
-async def get_property(
-    property_id: int,
-    current_user: ActiveUser,
-    db: DBSession,
-):
-    return await get_property_by_id(property_id, db)
 
 
 update_desc = """pick your field of interest and ignore the rest, the server will dynamically update them"""
@@ -91,11 +79,24 @@ Retrieve a paginated list of available properties using cursor-based pagination.
 )
 async def property_feed(
     filter_query: Annotated[FilterParams, Query()],
-    current_user: ActiveUser,
+    _current_user: ActiveUser,
     db: DBSession,
 ):
     return await filtered_property(filter_query, db)
 
+
+@router.get(
+    "/{property_id}",
+    response_model=PropertyShow,
+    status_code=status.HTTP_200_OK,
+    description="Get a single property by its ID",
+)
+async def get_property(
+    property_id: int,
+    current_user: ActiveUser,
+    db: DBSession,
+):
+    return await get_property_by_id(property_id, db)
 
 @router.get(
     "/agent-profile/{agent_id}",
