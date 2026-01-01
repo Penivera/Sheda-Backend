@@ -43,8 +43,11 @@ async def list_property(
 
 
 @router.get("/me", response_model=List[PropertyShow], status_code=status.HTTP_200_OK)
-async def get_my_listing(current_user: ActiveAgent, db: DBSession):
-    return await get_user_properties(current_user, db)
+async def get_my_listing(
+    current_user: ActiveAgent,
+    filter_query: Annotated[FilterParams, Query()],
+    db: DBSession):
+    return await get_user_properties(current_user,filter_query, db)
 
 
 
