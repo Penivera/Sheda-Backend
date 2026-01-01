@@ -86,7 +86,7 @@ async def property_feed(
 
 
 @router.get(
-    "/{property_id}",
+    "/details/{property_id}",
     response_model=PropertyShow,
     status_code=status.HTTP_200_OK,
     description="Get a single property by its ID",
