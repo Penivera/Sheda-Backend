@@ -126,10 +126,15 @@ async def get_agent_by_id(agent_id: int, db: AsyncSession):
 
 
 async def delist_property(property_id: int, db: AsyncSession, current_user: UserInDB):
-    property: Property = next(
-        (property for property in current_user.listing if property.id == property_id), # type: ignore
-        None,
-    )  # type: ignore
+    logger.info(f"Attempting to delete property id:{property_id} by agent id:{current_user.id}")
+    # fetch property directly from user's listings
+    
+    property: Property = select(Property).where(
+        Property.id == property_id, Property.agent_id == current_user.id
+    )
+    property_result: Result = await db.execute(property)
+    property = property_result.scalar_one_or_none()
+    
 
     if not property:
         raise HTTPException(
@@ -142,6 +147,7 @@ async def delist_property(property_id: int, db: AsyncSession, current_user: User
             detail="Property cannot be deleted because it is currently rented or sold",
         )
     await db.delete(property)
+    logger.info(f"Property with id:{property_id} deleted by agent id:{current_user.id}")
     await db.commit()
     return DeleteProperty(message="Property Deleted")
 
