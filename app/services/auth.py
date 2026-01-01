@@ -57,9 +57,9 @@ async def get_user(
         options.append(selectinload(Agent.listings))
         options.append(selectinload(Agent.availabilities))
     conditions = [
-    BaseUser.email == identifier,
-    BaseUser.username == identifier,
-    BaseUser.phone_number == identifier,
+        BaseUser.email == identifier,
+        BaseUser.username == identifier,
+        BaseUser.phone_number == identifier,
     ]
     if identifier.isdigit():
         conditions.append(BaseUser.id == int(identifier))
@@ -121,9 +121,6 @@ async def process_signup(user_data: UserCreate, db: AsyncSession):
     )
 
 
-
-
-
 async def process_logout(token: str):
     try:
         remaining_time = await token_exp_time(token)
@@ -152,6 +149,6 @@ async def switch_account(
         )
     scopes = [switch_to]
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.id, scopes=scopes)  # type: ignore
+        data=TokenData(sub=user.id, scopes=scopes)  # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
