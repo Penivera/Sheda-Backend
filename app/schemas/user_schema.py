@@ -104,7 +104,7 @@ FileDir = Literal["profile", "property"]
 
 
 class AgentFeed(BaseModel):
-    profile_pic: Union[AnyUrl, str] = None  # type: ignore # type: ignore
+    profile_pic: Optional[Union[AnyUrl, str]] = None
     username: Optional[str] = None
     email: EmailStr
     phone_number: Optional[PhoneStr] = None
