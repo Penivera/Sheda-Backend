@@ -12,9 +12,12 @@ from app.schemas.chat import (
     UnreadCountResponse,
     UserInfoSchema,
     PropertyInfoSchema,
+    ChatPaginationParams,
+    ConversationPaginationParams,
+    MessageHistoryParams,
 )
 from app.schemas.user_schema import UserShow
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Annotated
 from core.dependecies import DBSession
 from app.services.user_service import ActiveUser, ActiveVerifiedWSUser
 from sqlalchemy.future import select
@@ -127,10 +130,12 @@ async def websocket_chat(
     response_model=List[ChatMessageSchema],
     status_code=status.HTTP_200_OK,
 )
-async def chat_history(current_user: ActiveUser, db: DBSession,
-                       offset: int = Query(0, ge=0, description="Number of messages to skip"),
-    limit: int = Query(100, ge=1, le=200, description="Number of messages to return"),):
-    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(offset).limit(limit)
+async def chat_history(
+    current_user: ActiveUser,
+    db: DBSession,
+    pagination: Annotated[ChatPaginationParams, Query()],
+):
+    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(pagination.offset).limit(pagination.limit)
     result: Result = await db.execute(query)
     chats = result.scalars().all()
     return chats
@@ -178,8 +183,7 @@ async def get_property_info(property_id: int, db: DBSession) -> Optional[Propert
 async def get_conversations(
     current_user: ActiveUser,
     db: DBSession,
-    offset: int = Query(0, ge=0, description="Number of conversations to skip"),
-    limit: int = Query(50, ge=1, le=100, description="Number of conversations to return"),
+    pagination: Annotated[ConversationPaginationParams, Query()],
 ):
     """
     Get all active conversations for the current user.
@@ -218,8 +222,8 @@ async def get_conversations(
         )
         .group_by(union_subquery.c.other_user_id)
         .order_by(desc(func.max(union_subquery.c.last_timestamp)))
-        .offset(offset)
-        .limit(limit)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
     )
 
     partners_result = await db.execute(partners_query)
@@ -301,9 +305,7 @@ async def get_message_history(
     user_id: int,
     current_user: ActiveUser,
     db: DBSession,
-    offset: int = Query(0, ge=0, description="Number of messages to skip"),
-    limit: int = Query(100, ge=1, le=200, description="Number of messages to return"),
-    property_id: Optional[int] = Query(None, description="Filter by property ID"),
+    pagination: Annotated[MessageHistoryParams, Query()],
 ):
     """
     Get the message history between the current user and another user.
@@ -332,15 +334,15 @@ async def get_message_history(
     )
 
     # Add property filter if provided
-    if property_id:
-        conditions = and_(conditions, ChatMessage.property_id == property_id)
+    if pagination.property_id:
+        conditions = and_(conditions, ChatMessage.property_id == pagination.property_id)
 
     query = (
         select(ChatMessage)
         .where(conditions)
         .order_by(desc(ChatMessage.timestamp))
-        .offset(offset)
-        .limit(limit)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
     )
     result = await db.execute(query)
     messages = result.scalars().all()
