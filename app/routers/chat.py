@@ -187,22 +187,48 @@ async def get_conversations(
     """
     user_id = current_user.id
 
-    # Get all unique users the current user has chatted with
-    # Using a subquery to get the latest message for each conversation
-    sent_query = select(ChatMessage.receiver_id.label("other_user_id")).where(
-        ChatMessage.sender_id == user_id
-    )
-    received_query = select(ChatMessage.sender_id.label("other_user_id")).where(
-        ChatMessage.receiver_id == user_id
+    # Build a subquery to get all conversation partners with their latest message timestamp
+    # This approach uses database-level sorting and pagination
+    sent_subquery = (
+        select(
+            ChatMessage.receiver_id.label("other_user_id"),
+            func.max(ChatMessage.timestamp).label("last_timestamp"),
+        )
+        .where(ChatMessage.sender_id == user_id)
+        .group_by(ChatMessage.receiver_id)
     )
 
-    # Union to get all unique conversation partners
-    union_query = sent_query.union(received_query).subquery()
-    other_user_ids_result = await db.execute(select(union_query.c.other_user_id))
-    other_user_ids = [row[0] for row in other_user_ids_result.fetchall()]
+    received_subquery = (
+        select(
+            ChatMessage.sender_id.label("other_user_id"),
+            func.max(ChatMessage.timestamp).label("last_timestamp"),
+        )
+        .where(ChatMessage.receiver_id == user_id)
+        .group_by(ChatMessage.sender_id)
+    )
+
+    # Union all conversation partners with their latest message timestamps
+    union_subquery = sent_subquery.union_all(received_subquery).subquery()
+
+    # Get unique conversation partners with max timestamp, sorted and paginated at DB level
+    partners_query = (
+        select(
+            union_subquery.c.other_user_id,
+            func.max(union_subquery.c.last_timestamp).label("latest_timestamp"),
+        )
+        .group_by(union_subquery.c.other_user_id)
+        .order_by(desc(func.max(union_subquery.c.last_timestamp)))
+        .offset(offset)
+        .limit(limit)
+    )
+
+    partners_result = await db.execute(partners_query)
+    partners = partners_result.fetchall()
 
     conversations = []
-    for other_user_id in other_user_ids[offset : offset + limit]:
+    for partner_row in partners:
+        other_user_id = partner_row[0]
+
         # Get the last message in this conversation
         last_message_query = (
             select(ChatMessage)
@@ -229,7 +255,7 @@ async def get_conversations(
             and_(
                 ChatMessage.sender_id == other_user_id,
                 ChatMessage.receiver_id == user_id,
-                ChatMessage.is_read == False,
+                ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
             )
         )
         unread_result = await db.execute(unread_query)
@@ -261,10 +287,6 @@ async def get_conversations(
         )
         conversations.append(conversation)
 
-    # Sort by last message timestamp (most recent first)
-    conversations.sort(
-        key=lambda x: x.last_message_timestamp or datetime.min, reverse=True
-    )
     return conversations
 
 
@@ -472,7 +494,7 @@ async def mark_messages_read(
         and_(
             ChatMessage.sender_id == sender_id,
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,
+            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     result = await db.execute(query)
@@ -511,7 +533,7 @@ async def get_unread_count(
     total_unread_query = select(func.count(ChatMessage.id)).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,
+            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     total_unread_result = await db.execute(total_unread_query)
@@ -523,7 +545,7 @@ async def get_unread_count(
     ).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,
+            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     conversations_result = await db.execute(conversations_query)
