@@ -38,8 +38,8 @@ async def create_property_listing(
     return new_property
 
 
-async def get_user_properties(current_user: UserInDB, db: AsyncSession):
-    query = select(Property).where(Property.agent_id == current_user.id)
+async def get_user_properties(current_user: UserInDB, filter_query: FilterParams, db: AsyncSession):
+    query = select(Property).where(Property.agent_id == current_user.id ).where(Property.id >= filter_query.cursor).limit(filter_query.limit)
     result: Result = await db.execute(query)
     property = result.scalars().all()
     return property
