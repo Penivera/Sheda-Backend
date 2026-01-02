@@ -9,7 +9,7 @@ from app.models.property import (
     Contract,
     AccountInfo,
 )
-from app.models.user import BaseUser
+from app.models.user import BaseUser, Agent
 from app.schemas.property_schema import PropertyBase, PropertyUpdate, ContractCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
@@ -20,7 +20,7 @@ from app.schemas.property_schema import (
     AgentAvailabilitySchema,
 )
 from datetime import datetime, timezone, timedelta
-from app.utils.enums import AppointmentStatEnum, PropertyStatEnum, ListingTypeEnum
+from app.utils.enums import AppointmentStatEnum, PropertyStatEnum, ListingTypeEnum, AccountTypeEnum
 from core.logger import logger
 
 
@@ -113,7 +113,7 @@ async def filtered_property(filter_query: FilterParams, db: AsyncSession):
 
 
 async def get_agent_by_id(agent_id: int, db: AsyncSession):
-    query = select(BaseUser).where(BaseUser.id == agent_id)
+    query = select(Agent).where(Agent.id == agent_id)
     result: Result = await db.execute(query)
     agent = result.scalar_one_or_none()
     if not agent:
@@ -121,7 +121,6 @@ async def get_agent_by_id(agent_id: int, db: AsyncSession):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"agent with id:{agent_id} not found",
         )
-    await db.refresh(agent)
     return agent
 
 
@@ -224,7 +223,7 @@ async def update_agent_availabilty(
     schedule = next(
         (
             availability
-            for availability in current_user.availbilities
+            for availability in current_user.availabilities
             if availability.id == schedule_id
         ),
         None,
