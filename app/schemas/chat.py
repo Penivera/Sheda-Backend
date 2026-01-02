@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Annotated
 
 
 class ChatMessageSchema(BaseModel):
@@ -13,6 +13,26 @@ class ChatMessageSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Pagination parameters for chat endpoints
+class ChatPaginationParams(BaseModel):
+    """Reusable pagination parameters for chat endpoints"""
+    offset: Annotated[int, Field(ge=0, default=0, description="Number of items to skip")]
+    limit: Annotated[int, Field(ge=1, le=200, default=50, description="Number of items to return")]
+
+
+class ConversationPaginationParams(BaseModel):
+    """Pagination parameters for conversations endpoint"""
+    offset: Annotated[int, Field(ge=0, default=0, description="Number of conversations to skip")]
+    limit: Annotated[int, Field(ge=1, le=100, default=50, description="Number of conversations to return")]
+
+
+class MessageHistoryParams(BaseModel):
+    """Parameters for message history endpoint"""
+    offset: Annotated[int, Field(ge=0, default=0, description="Number of messages to skip")]
+    limit: Annotated[int, Field(ge=1, le=200, default=100, description="Number of messages to return")]
+    property_id: Optional[int] = Field(None, description="Filter by property ID")
 
 
 class UserInfoSchema(BaseModel):
