@@ -264,24 +264,59 @@ from fastapi import WebSocket, Query
 async def get_websocket_user(
     websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None
 ):
+    """
+    Authenticate a WebSocket connection using JWT token.
+    
+    Token can be provided via:
+    1. Query parameter (?token=...)
+    2. Sec-WebSocket-Protocol header (Bearer.{token} or raw token)
+    
+    Returns the authenticated user or None if authentication fails.
+    Closes the WebSocket with WS_1008_POLICY_VIOLATION on auth failure.
+    """
+    # Try to get token from Sec-WebSocket-Protocol header if not provided via query
+    if not token:
+        protocols = websocket.headers.get("sec-websocket-protocol", "")
+        if protocols:
+            # Token might be in the protocol list
+            protocol_list = [p.strip() for p in protocols.split(",")]
+            for protocol in protocol_list:
+                if protocol.startswith("Bearer."):
+                    token = protocol[7:]  # Remove "Bearer." prefix
+                    break
+                elif protocol.lower() not in ["chat", "websocket"]:
+                    # Assume it's a token if not a standard protocol name
+                    token = protocol
+                    break
 
-    logger.info(f"Extracted Token: {token}")
+    if not token:
+        logger.warning("WebSocket auth failed: No token provided")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return None
+
+    logger.info(f"Extracted Token: {token[:20]}...")
     try:
         payload: dict = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]  # type: ignore
         )  # type: ignore
         identifier = payload.get("sub")
         if not identifier:
+            logger.warning("WebSocket auth failed: No subject in token")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         user: UserInDB = await get_user(identifier, db)  # type: ignore
-        logger.info(f"{user.email} fetched")
         if not user:
+            logger.warning("WebSocket auth failed: User not found")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
+        logger.info(f"{user.email} fetched")
         if not user.is_active or not user.verified:
+            logger.warning(f"WebSocket auth failed: User inactive or unverified")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         return user
     except (InvalidTokenError, ExpiredSignatureError) as e:
-        logger.error(f"an Error occurred\n{e}")
+        logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
