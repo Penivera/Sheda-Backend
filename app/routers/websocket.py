@@ -1,22 +1,15 @@
 """
 WebSocket service for real-time messaging.
 Endpoint: /ws/{user_id}
-Authentication: JWT/Token from query parameter or Sec-WebSocket-Protocol header
+Authentication: JWT/Token from query parameter (?token=...) or Sec-WebSocket-Protocol header (Bearer.{token})
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query
-from typing import Dict, Optional, Annotated
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from typing import Dict, Optional
 from core.dependecies import DBSession
 from core.logger import logger
-from core.configs import settings, redis
-from core.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.chat import ChatMessage
-from app.models.user import BaseUser
-from app.services.auth import get_user
-from app.utils.enums import AccountTypeEnum
-import jwt
-from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+from app.services.user_service import ActiveVerifiedWSUser
 
 
 router = APIRouter(tags=["WebSocket"])
@@ -90,118 +83,22 @@ class WebSocketConnectionManager:
 ws_manager = WebSocketConnectionManager()
 
 
-async def authenticate_websocket_user(
-    websocket: WebSocket,
-    user_id: int,
-    db: AsyncSession,
-    token: Optional[str] = None,
-) -> Optional[BaseUser]:
-    """
-    Authenticate a WebSocket connection using JWT token.
-    Token can be provided via:
-    1. Query parameter (?token=...)
-    2. Sec-WebSocket-Protocol header
-
-    Returns the authenticated user or None if authentication fails.
-    """
-    # Try to get token from Sec-WebSocket-Protocol header if not provided via query
-    if not token:
-        protocols = websocket.headers.get("sec-websocket-protocol", "")
-        if protocols:
-            # Token might be in the protocol list
-            protocol_list = [p.strip() for p in protocols.split(",")]
-            for protocol in protocol_list:
-                if protocol.startswith("Bearer."):
-                    token = protocol[7:]  # Remove "Bearer." prefix
-                    break
-                elif not protocol.lower() in ["chat", "websocket"]:
-                    # Assume it's a token if not a standard protocol name
-                    token = protocol
-                    break
-
-    if not token:
-        logger.warning(f"WebSocket auth failed: No token provided for user_id={user_id}")
-        return None
-
-    # Check if token is blacklisted
-    is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
-    if is_blacklisted:
-        logger.warning(f"WebSocket auth failed: Token is blacklisted for user_id={user_id}")
-        return None
-
-    try:
-        payload: dict = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        identifier = payload.get("sub")
-        if not identifier:
-            logger.warning(f"WebSocket auth failed: No subject in token for user_id={user_id}")
-            return None
-
-        token_scopes = payload.get("scopes", [])
-
-        # Determine account type from scopes
-        account_type = AccountTypeEnum.client
-        if AccountTypeEnum.agent.value in token_scopes:
-            account_type = AccountTypeEnum.agent
-
-        # Fetch user from database
-        user = await get_user(str(identifier), db, account_type)
-
-        if not user:
-            logger.warning(f"WebSocket auth failed: User not found for identifier={identifier}")
-            return None
-
-        # Verify user_id matches
-        if user.id != user_id:
-            logger.warning(
-                f"WebSocket auth failed: user_id mismatch (token={user.id}, path={user_id})"
-            )
-            return None
-
-        if not user.is_active:
-            logger.warning(f"WebSocket auth failed: User {user_id} is inactive")
-            return None
-
-        if not user.verified:
-            logger.warning(f"WebSocket auth failed: User {user_id} is not verified")
-            return None
-
-        # Reject OTP tokens
-        if "otp" in token_scopes:
-            logger.warning(f"WebSocket auth failed: OTP token not permitted for user_id={user_id}")
-            return None
-
-        logger.info(f"WebSocket auth successful for user: {user.email}")
-        return user
-
-    except ExpiredSignatureError:
-        logger.warning(f"WebSocket auth failed: Token expired for user_id={user_id}")
-        return None
-    except InvalidTokenError as e:
-        logger.error(f"WebSocket auth failed: Invalid token for user_id={user_id} - {e}")
-        return None
-    except Exception as e:
-        logger.error(f"WebSocket auth failed: Unexpected error for user_id={user_id} - {e}")
-        return None
-
-
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: int,
-    token: Annotated[Optional[str], Query()] = None,
+    current_user: ActiveVerifiedWSUser,
+    db: DBSession,
 ):
     """
     WebSocket endpoint for real-time messaging.
 
-    Connection:
-    - Connect to /ws/{user_id}?token={jwt_token}
-    - Or use Sec-WebSocket-Protocol header with the JWT token
-
     Authentication:
-    - JWT token is required for authentication
-    - Returns 401/403 for failed authentication during handshake
+    - Connect with query param: /ws/{user_id}?token={jwt_token}
+    - Or via Sec-WebSocket-Protocol header: Bearer.{jwt_token}
+
+    Note: JWT token is required for authentication.
+    Returns WS_1008_POLICY_VIOLATION (401/403 equivalent) for failed auth.
 
     Message Format (incoming):
     {
@@ -224,92 +121,84 @@ async def websocket_endpoint(
         "property_id": int (optional)
     }
     """
-    # Get database session
-    async for db in get_db():
-        try:
-            # Authenticate the user
-            user = await authenticate_websocket_user(websocket, user_id, db, token)
+    if not current_user:
+        logger.info("User not found or authentication failed")
+        return  # user was invalid, websocket already closed in dependency
 
-            if not user:
-                # Authentication failed - close with policy violation code
-                # This is equivalent to 401/403 for WebSocket
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
+    # Verify user_id matches the authenticated user
+    if current_user.id != user_id:
+        logger.warning(f"WebSocket auth failed: user_id mismatch (token={current_user.id}, path={user_id})")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
-            # Connect and track the session
-            await ws_manager.connect(websocket, user_id)
+    # Connect and track the session
+    await ws_manager.connect(websocket, user_id)
 
-            # Build user info for messages
-            sender_info = {
-                "id": user.id,
-                "username": user.username,
-                "avatar_url": user.profile_pic,
+    # Build user info for messages
+    sender_info = {
+        "id": current_user.id,
+        "username": current_user.username,
+        "avatar_url": current_user.profile_pic,
+    }
+
+    try:
+        while True:
+            # Wait for incoming messages
+            try:
+                data = await websocket.receive_json()
+            except Exception:
+                await websocket.send_json({"error": "Invalid JSON received"})
+                continue
+
+            receiver_id = data.get("receiver_id")
+            message = data.get("message")
+            property_id = data.get("property_id")
+
+            # Validate required fields
+            if not receiver_id or not message:
+                await websocket.send_json(
+                    {"error": "Missing required fields: receiver_id, message"}
+                )
+                continue
+
+            # Store message in database
+            chat_message = ChatMessage(
+                sender_id=user_id,
+                receiver_id=receiver_id,
+                message=message,
+                property_id=property_id,
+                is_read=False,
+            )
+            db.add(chat_message)
+            await db.commit()
+            await db.refresh(chat_message)
+
+            # Build outgoing message payload
+            payload = {
+                "id": chat_message.id,
+                "sender_info": sender_info,
+                "receiver_id": chat_message.receiver_id,
+                "message": chat_message.message,
+                "created_at": (
+                    chat_message.timestamp.isoformat()
+                    if chat_message.timestamp
+                    else None
+                ),
+                "property_id": chat_message.property_id,
             }
 
-            try:
-                while True:
-                    # Wait for incoming messages
-                    try:
-                        data = await websocket.receive_json()
-                    except Exception:
-                        await websocket.send_json({"error": "Invalid JSON received"})
-                        continue
+            # Send to receiver if connected
+            sent = await ws_manager.send_personal_message(payload, receiver_id)
 
-                    receiver_id = data.get("receiver_id")
-                    message = data.get("message")
-                    property_id = data.get("property_id")
+            # Send confirmation back to sender
+            await websocket.send_json(
+                {
+                    "status": "sent",
+                    "delivered": sent,
+                    "message_id": chat_message.id,
+                }
+            )
 
-                    # Validate required fields
-                    if not receiver_id or not message:
-                        await websocket.send_json(
-                            {"error": "Missing required fields: receiver_id, message"}
-                        )
-                        continue
-
-                    # Store message in database
-                    chat_message = ChatMessage(
-                        sender_id=user_id,
-                        receiver_id=receiver_id,
-                        message=message,
-                        property_id=property_id,
-                        is_read=False,
-                    )
-                    db.add(chat_message)
-                    await db.commit()
-                    await db.refresh(chat_message)
-
-                    # Build outgoing message payload
-                    payload = {
-                        "id": chat_message.id,
-                        "sender_info": sender_info,
-                        "receiver_id": chat_message.receiver_id,
-                        "message": chat_message.message,
-                        "created_at": (
-                            chat_message.timestamp.isoformat()
-                            if chat_message.timestamp
-                            else None
-                        ),
-                        "property_id": chat_message.property_id,
-                    }
-
-                    # Send to receiver if connected
-                    sent = await ws_manager.send_personal_message(payload, receiver_id)
-
-                    # Send confirmation back to sender
-                    await websocket.send_json(
-                        {
-                            "status": "sent",
-                            "delivered": sent,
-                            "message_id": chat_message.id,
-                        }
-                    )
-
-            except WebSocketDisconnect:
-                ws_manager.disconnect(user_id)
-                logger.info(f"WebSocket disconnected for user_id={user_id}")
-
-        except Exception as e:
-            logger.error(f"WebSocket error for user_id={user_id}: {e}")
-            ws_manager.disconnect(user_id)
-        finally:
-            break  # Exit the async generator loop
+    except WebSocketDisconnect:
+        ws_manager.disconnect(user_id)
+        logger.info(f"WebSocket disconnected for user_id={user_id}")
