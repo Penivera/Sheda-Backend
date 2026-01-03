@@ -4,7 +4,7 @@ Tests for the WebSocket service at /ws/{user_id}
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import WebSocket, status
+from fastapi import WebSocket
 from app.routers.websocket import (
     WebSocketConnectionManager,
     authenticate_websocket_user,
