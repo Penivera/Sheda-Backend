@@ -13,8 +13,6 @@ from core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.chat import ChatMessage
 from app.models.user import BaseUser
-from app.schemas.chat import ChatMessageSchema, UserInfoSchema
-from app.schemas.user_schema import UserShow
 from app.services.auth import get_user
 from app.utils.enums import AccountTypeEnum
 import jwt
