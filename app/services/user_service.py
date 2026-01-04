@@ -259,42 +259,78 @@ async def require_admin_scope(
 AdminUser = Annotated[BaseUser, Depends(require_admin_scope)]
 
 from fastapi import WebSocket, Query
+import re
+
+
+# JWT pattern: three base64url-encoded segments separated by dots
+# This is a simple pattern that checks for the basic structure of a JWT
+JWT_PATTERN = re.compile(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$')
+
+
+def is_jwt_like(value: str) -> bool:
+    """Check if a string looks like a JWT token (header.payload.signature format)."""
+    return bool(JWT_PATTERN.match(value))
 
 
 async def get_websocket_user(
     websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None
-):
+) -> BaseUser | None:
     """
     Authenticate a WebSocket connection using JWT token.
     
     Token can be provided via:
-    1. Query parameter (?token=...)
-    2. Sec-WebSocket-Protocol header (Bearer.{token} or raw token)
+    1. Query parameter (?token=...) - Standard approach
+    2. Sec-WebSocket-Protocol header with format:
+       - "Bearer.{token}" - Recommended format for protocol header auth
+       - "access_token, {token}" - Alternative subprotocol format
     
-    Returns the authenticated user or None if authentication fails.
-    Closes the WebSocket with WS_1008_POLICY_VIOLATION on auth failure.
+    Returns:
+    - The authenticated user on success (connection is accepted)
+    - None on failure (connection is closed with WS_1008_POLICY_VIOLATION)
+    
+    Note: This function handles the WebSocket accept/close internally.
+    On successful auth, the connection is accepted (with subprotocol if applicable).
+    On failed auth, the connection is closed.
     """
-    # Try to get token from Sec-WebSocket-Protocol header if not provided via query
-    if not token:
+    subprotocol = None
+    
+    # Check if token provided via query parameter
+    if token:
+        logger.info("Token provided via query parameter")
+    else:
+        # Try to get token from Sec-WebSocket-Protocol header
         protocols = websocket.headers.get("sec-websocket-protocol", "")
         if protocols:
-            # Token might be in the protocol list
             protocol_list = [p.strip() for p in protocols.split(",")]
-            for protocol in protocol_list:
+            logger.info(f"Sec-WebSocket-Protocol header found: {protocol_list}")
+            
+            for i, protocol in enumerate(protocol_list):
+                # Format 1: Bearer.{token}
                 if protocol.startswith("Bearer."):
                     token = protocol[7:]  # Remove "Bearer." prefix
+                    subprotocol = protocol  # Echo back the full protocol
                     break
-                elif protocol.lower() not in ["chat", "websocket"]:
-                    # Assume it's a token if not a standard protocol name
-                    token = protocol
+                # Format 2: access_token, {token} (two-part format)
+                elif protocol == "access_token" and i + 1 < len(protocol_list):
+                    token = protocol_list[i + 1]
+                    subprotocol = "access_token"
                     break
+                # Format 3: Raw token (not a standard protocol name)
+                elif protocol.lower() not in ["chat", "websocket", "graphql-ws", "graphql-transport-ws"]:
+                    # Check if it looks like a JWT (header.payload.signature format)
+                    if is_jwt_like(protocol):
+                        token = protocol
+                        subprotocol = protocol
+                        break
 
     if not token:
         logger.warning("WebSocket auth failed: No token provided")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    logger.info(f"Extracted Token: {token[:20]}...")
+    # Log truncated token for debugging (first 20 chars only)
+    logger.info(f"Extracted token: {token[:20]}...")
+    
     try:
         payload: dict = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]  # type: ignore
@@ -304,24 +340,40 @@ async def get_websocket_user(
             logger.warning("WebSocket auth failed: No subject in token")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return None
+        
         user: UserInDB = await get_user(identifier, db)  # type: ignore
         if not user:
             logger.warning("WebSocket auth failed: User not found")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return None
-        logger.info(f"{user.email} fetched")
-        if not user.is_active or not user.verified:
-            logger.warning(f"WebSocket auth failed: User inactive or unverified")
+        
+        logger.info(f"WebSocket auth successful: {user.email}")
+        
+        if not user.is_active:
+            logger.warning("WebSocket auth failed: User inactive")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return None
+        
+        if not user.verified:
+            logger.warning("WebSocket auth failed: User unverified")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
+        
+        # Accept connection with subprotocol if token was from protocol header
+        if subprotocol:
+            await websocket.accept(subprotocol=subprotocol)
+        else:
+            await websocket.accept()
+        
         return user
+        
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
 
-ActiveVerifiedWSUser = Annotated[BaseUser, Depends(get_websocket_user)]
+ActiveVerifiedWSUser = Annotated[BaseUser | None, Depends(get_websocket_user)]
 
 
 async def reset_password(user: UserInDB, db: DBSession, new_password: str):
