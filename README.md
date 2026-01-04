@@ -179,81 +179,235 @@ This is the backend system for the real estate application. It handles user auth
 - Runs **every 24 hours** to check for expired contracts.
 - Marks contracts as inactive and updates property availability.
 
-## WebSocket for Real-time Chat
+## WebSocket API Reference
 
-The chat system enables real-time messaging using WebSockets.
+The platform provides real-time messaging capabilities through WebSocket endpoints.
 
-### **WebSocket Endpoint**
+### Available WebSocket Endpoints
 
-The WebSocket endpoint is available at:
+| Endpoint | Description |
+|----------|-------------|
+| `/ws/{user_id}` | Primary messaging endpoint with user ID verification |
+| `/api/v1/chat/ws` | Alternative chat endpoint (no user ID in path) |
+
+---
+
+### Authentication Methods
+
+WebSocket connections require JWT authentication. Two methods are supported:
+
+#### 1. Query Parameter (Recommended for browsers)
+
+Append the token as a query parameter:
 
 ```
-ws://<your_domain>/api/v1/chat/ws?token=<your_jwt_token>
+ws://<host>/ws/{user_id}?token={jwt_token}
+ws://<host>/api/v1/chat/ws?token={jwt_token}
 ```
 
-Example for local development:
+**Example (JavaScript):**
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws/123?token=eyJhbGciOiJIUzI1NiIs...');
+```
+
+#### 2. Sec-WebSocket-Protocol Header (Recommended for WebSocket clients)
+
+Pass the token via the `Sec-WebSocket-Protocol` header using the format `Bearer.{token}`:
 
 ```
-ws://localhost:8000/api/v1/chat/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Sec-WebSocket-Protocol: Bearer.{jwt_token}
 ```
 
-### **Authentication & Connection**
+**Example (JavaScript):**
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws/123', ['Bearer.eyJhbGciOiJIUzI1NiIs...']);
+```
 
-- Authentication is handled via a JWT `token` passed as a query parameter.
-- The user is identified by the token, so `sender_id` is implicit in outgoing messages.
+**Example (Python with websockets):**
+```python
+import websockets
 
-### **Message Format**
+async with websockets.connect(
+    'ws://localhost:8000/ws/123',
+    subprotocols=['Bearer.eyJhbGciOiJIUzI1NiIs...']
+) as ws:
+    # Connection established
+    pass
+```
 
-- **Sending a message:** The client sends a JSON object with `receiver_id` and `message`.
+> **Note:** When using the protocol header method, the server echoes back the protocol on successful connection, following WebSocket standards.
 
-  ```json
-  {
-    "receiver_id": 123,
-    "message": "Hello there!"
-  }
-  ```
+---
 
-- **Receiving a message:** The server sends a detailed JSON payload to the recipient.
+### Message Payload Structures
 
-  ```json
-  {
-    "id": 1,
-    "sender_info": { "id": 456, "username": "sender_name", "avatar_url": "url/to/pic.jpg" },
+#### Incoming Message (Client → Server)
+
+Send messages to other users:
+
+```json
+{
     "receiver_id": 123,
     "message": "Hello there!",
-    "created_at": "2025-10-16T10:00:00.000Z"
-  }
-  ```
+    "property_id": 456
+}
+```
 
-### **Chat History Endpoint**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `receiver_id` | `int` | ✅ Yes | Target user's ID |
+| `message` | `string` | ✅ Yes | Message content |
+| `property_id` | `int` | ❌ No | Optional property ID for property-related discussions |
+
+#### Outgoing Message (Server → Client)
+
+Messages received from other users:
+
+```json
+{
+    "id": 1,
+    "sender_info": {
+        "id": 456,
+        "username": "sender_name",
+        "avatar_url": "https://example.com/avatar.jpg"
+    },
+    "receiver_id": 123,
+    "message": "Hello there!",
+    "created_at": "2025-10-16T10:00:00.000Z",
+    "property_id": 456
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `int` | Unique message ID |
+| `sender_info` | `object` | Sender's user information |
+| `sender_info.id` | `int` | Sender's user ID |
+| `sender_info.username` | `string` | Sender's username |
+| `sender_info.avatar_url` | `string\|null` | Sender's profile picture URL |
+| `receiver_id` | `int` | Recipient's user ID |
+| `message` | `string` | Message content |
+| `created_at` | `string` | ISO 8601 timestamp |
+| `property_id` | `int\|null` | Associated property ID (if any) |
+
+#### Confirmation Response (Server → Sender)
+
+After sending a message, the sender receives a confirmation:
+
+```json
+{
+    "status": "sent",
+    "delivered": true,
+    "message_id": 1
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `string` | Always `"sent"` on success |
+| `delivered` | `boolean` | `true` if recipient is online and received the message |
+| `message_id` | `int` | ID of the stored message |
+
+#### Error Response
+
+When validation fails:
+
+```json
+{
+    "error": "Missing required fields: receiver_id, message"
+}
+```
+
+---
+
+### Connection Error Codes
+
+| Code | Name | Description |
+|------|------|-------------|
+| `1008` | Policy Violation | Authentication failed (invalid/expired token, inactive user, or user ID mismatch) |
+
+---
+
+### /ws/{user_id} Endpoint Details
+
+**URL:** `ws://<host>/ws/{user_id}`
+
+This endpoint requires the `user_id` in the path to match the authenticated user's ID from the JWT token. This provides an additional layer of verification.
+
+**Connection Flow:**
+1. Client connects with token (query param or protocol header)
+2. Server validates JWT token
+3. Server verifies `user_id` matches the token's subject
+4. Server accepts connection (echoing subprotocol if used)
+5. Real-time messaging begins
+
+---
+
+### /api/v1/chat/ws Endpoint Details
+
+**URL:** `ws://<host>/api/v1/chat/ws`
+
+This endpoint authenticates solely via the JWT token without requiring the user ID in the path.
+
+**Connection Flow:**
+1. Client connects with token (query param or protocol header)
+2. Server validates JWT token
+3. Server accepts connection (echoing subprotocol if used)
+4. Real-time messaging begins
+
+---
+
+### Chat History REST Endpoint
 
 To retrieve paginated chat history with a specific user, make a **GET** request to:
 
 ```
-GET /api/v1/chat/chat-history/{other_user_id}?offset=0&limit=50
+GET /api/v1/chat/history/{user_id}?offset=0&limit=50
 ```
 
-- **`other_user_id`** (path parameter): The ID of the user you are fetching history with.
-- **`offset`** (query parameter, optional): Number of messages to skip. Default is `0`.
-- **`limit`** (query parameter, optional): Number of messages to return. Default is `100`.
+**Parameters:**
 
-#### **Response Format**
+| Parameter | Location | Type | Required | Default | Description |
+|-----------|----------|------|----------|---------|-------------|
+| `user_id` | path | `int` | ✅ Yes | - | The ID of the other user in the conversation |
+| `offset` | query | `int` | ❌ No | `0` | Number of messages to skip |
+| `limit` | query | `int` | ❌ No | `100` | Number of messages to return (max: 200) |
+| `property_id` | query | `int` | ❌ No | - | Filter by property ID |
+
+**Response Format:**
 
 ```json
 [
-  {
-    "id": 1,
-    "sender_id": 456,
-    "receiver_id": 123,
-    "message": "Hello there!",
-    "timestamp": "2025-10-16T10:00:00.000Z"
-  }
+    {
+        "id": 1,
+        "sender_id": 456,
+        "receiver_id": 123,
+        "message": "Hello there!",
+        "timestamp": "2025-10-16T10:00:00.000Z",
+        "property_id": null,
+        "is_read": true,
+        "sender_info": {
+            "id": 456,
+            "username": "sender_name",
+            "profile_pic": "https://example.com/avatar.jpg",
+            "fullname": "John Doe"
+        },
+        "receiver_info": {
+            "id": 123,
+            "username": "receiver_name",
+            "profile_pic": null,
+            "fullname": "Jane Doe"
+        },
+        "property_info": null
+    }
 ]
 ```
 
-### **Disconnection Handling**
+---
 
-When a user disconnects, their WebSocket session is removed from active connections, ensuring clean resource management.
+### Disconnection Handling
+
+When a user disconnects, their WebSocket session is automatically removed from active connections, ensuring clean resource management.
 
 ## Deployment
 
@@ -262,7 +416,6 @@ When a user disconnects, their WebSocket session is removed from active connecti
 - APScheduler runs within the FastAPI application.
 
 ## Next Steps
-- Implement WebSockets for real-time chat.
 - Improve payment verification with webhook integration.
 - Enhance notification system for user interactions.
 
