@@ -11,6 +11,35 @@ from app.routers.websocket import (
 )
 
 
+class TestIsJwtLike:
+    """Tests for the is_jwt_like helper function."""
+
+    def test_valid_jwt_format(self):
+        """Test that valid JWT format is recognized."""
+        from app.services.user_service import is_jwt_like
+
+        # Standard JWT format
+        assert is_jwt_like("eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiIxMjM0NTY3ODkw.signature") is True
+        assert is_jwt_like("header.payload.signature") is True
+        assert is_jwt_like("abc123_-.xyz789_-.sig_-") is True
+        assert is_jwt_like("a.b.c") is True
+
+    def test_invalid_jwt_format(self):
+        """Test that invalid JWT formats are rejected."""
+        from app.services.user_service import is_jwt_like
+
+        # Too many dots
+        assert is_jwt_like("too.many.dots.here") is False
+        # Too few dots
+        assert is_jwt_like("onlyone.dot") is False
+        assert is_jwt_like("nodots") is False
+        # Empty string
+        assert is_jwt_like("") is False
+        # Invalid characters
+        assert is_jwt_like("has spaces.in.it") is False
+        assert is_jwt_like("has!special.chars.here") is False
+
+
 class TestWebSocketConnectionManager:
     """Tests for the WebSocketConnectionManager class."""
 

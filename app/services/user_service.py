@@ -259,7 +259,17 @@ async def require_admin_scope(
 AdminUser = Annotated[BaseUser, Depends(require_admin_scope)]
 
 from fastapi import WebSocket, Query
-from dataclasses import field
+import re
+
+
+# JWT pattern: three base64url-encoded segments separated by dots
+# This is a simple pattern that checks for the basic structure of a JWT
+JWT_PATTERN = re.compile(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$')
+
+
+def is_jwt_like(value: str) -> bool:
+    """Check if a string looks like a JWT token (header.payload.signature format)."""
+    return bool(JWT_PATTERN.match(value))
 
 
 @dataclass
@@ -320,8 +330,8 @@ async def get_websocket_user(
                     break
                 # Format 3: Raw token (not a standard protocol name)
                 elif protocol.lower() not in ["chat", "websocket", "graphql-ws", "graphql-transport-ws"]:
-                    # Check if it looks like a JWT (contains dots)
-                    if "." in protocol:
+                    # Check if it looks like a JWT (header.payload.signature format)
+                    if is_jwt_like(protocol):
                         token = protocol
                         subprotocol = protocol
                         token_source = "protocol_header"
