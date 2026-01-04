@@ -272,17 +272,9 @@ def is_jwt_like(value: str) -> bool:
     return bool(JWT_PATTERN.match(value))
 
 
-@dataclass
-class WebSocketAuthResult:
-    """Result of WebSocket authentication containing user and protocol info."""
-    user: BaseUser | None = None
-    subprotocol: str | None = None
-    token_source: str | None = None  # 'query' or 'protocol_header'
-
-
 async def get_websocket_user(
     websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None
-) -> WebSocketAuthResult:
+) -> BaseUser | None:
     """
     Authenticate a WebSocket connection using JWT token.
     
@@ -292,21 +284,18 @@ async def get_websocket_user(
        - "Bearer.{token}" - Recommended format for protocol header auth
        - "access_token, {token}" - Alternative subprotocol format
     
-    Returns WebSocketAuthResult containing:
-    - user: The authenticated user or None if authentication fails
-    - subprotocol: The subprotocol to echo back on accept (for protocol header auth)
-    - token_source: Where the token was extracted from ('query' or 'protocol_header')
+    Returns:
+    - The authenticated user on success (connection is accepted)
+    - None on failure (connection is closed with WS_1008_POLICY_VIOLATION)
     
-    Note: This function does NOT accept/close the WebSocket connection.
-    The calling endpoint must handle connection acceptance with proper subprotocol
-    or close the connection on auth failure.
+    Note: This function handles the WebSocket accept/close internally.
+    On successful auth, the connection is accepted (with subprotocol if applicable).
+    On failed auth, the connection is closed.
     """
     subprotocol = None
-    token_source = None
     
     # Check if token provided via query parameter
     if token:
-        token_source = "query"
         logger.info("Token provided via query parameter")
     else:
         # Try to get token from Sec-WebSocket-Protocol header
@@ -320,13 +309,11 @@ async def get_websocket_user(
                 if protocol.startswith("Bearer."):
                     token = protocol[7:]  # Remove "Bearer." prefix
                     subprotocol = protocol  # Echo back the full protocol
-                    token_source = "protocol_header"
                     break
                 # Format 2: access_token, {token} (two-part format)
                 elif protocol == "access_token" and i + 1 < len(protocol_list):
                     token = protocol_list[i + 1]
                     subprotocol = "access_token"
-                    token_source = "protocol_header"
                     break
                 # Format 3: Raw token (not a standard protocol name)
                 elif protocol.lower() not in ["chat", "websocket", "graphql-ws", "graphql-transport-ws"]:
@@ -334,15 +321,15 @@ async def get_websocket_user(
                     if is_jwt_like(protocol):
                         token = protocol
                         subprotocol = protocol
-                        token_source = "protocol_header"
                         break
 
     if not token:
         logger.warning("WebSocket auth failed: No token provided")
-        return WebSocketAuthResult(user=None, subprotocol=None, token_source=None)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return None
 
     # Log truncated token for debugging (first 20 chars only)
-    logger.info(f"Extracted token from {token_source}: {token[:20]}...")
+    logger.info(f"Extracted token: {token[:20]}...")
     
     try:
         payload: dict = jwt.decode(
@@ -351,60 +338,42 @@ async def get_websocket_user(
         identifier = payload.get("sub")
         if not identifier:
             logger.warning("WebSocket auth failed: No subject in token")
-            return WebSocketAuthResult(user=None, subprotocol=subprotocol, token_source=token_source)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         
         user: UserInDB = await get_user(identifier, db)  # type: ignore
         if not user:
             logger.warning("WebSocket auth failed: User not found")
-            return WebSocketAuthResult(user=None, subprotocol=subprotocol, token_source=token_source)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         
         logger.info(f"WebSocket auth successful: {user.email}")
         
         if not user.is_active:
             logger.warning("WebSocket auth failed: User inactive")
-            return WebSocketAuthResult(user=None, subprotocol=subprotocol, token_source=token_source)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         
         if not user.verified:
             logger.warning("WebSocket auth failed: User unverified")
-            return WebSocketAuthResult(user=None, subprotocol=subprotocol, token_source=token_source)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return None
         
-        return WebSocketAuthResult(user=user, subprotocol=subprotocol, token_source=token_source)
+        # Accept connection with subprotocol if token was from protocol header
+        if subprotocol:
+            await websocket.accept(subprotocol=subprotocol)
+        else:
+            await websocket.accept()
+        
+        return user
         
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
-        return WebSocketAuthResult(user=None, subprotocol=subprotocol, token_source=token_source)
-
-
-# Type alias for dependency injection
-WSAuthResult = Annotated[WebSocketAuthResult, Depends(get_websocket_user)]
-
-
-# Legacy dependency for backward compatibility (returns user directly or None)
-async def get_websocket_user_legacy(
-    websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None
-) -> BaseUser | None:
-    """
-    Legacy WebSocket authentication that handles connection accept/close internally.
-    
-    Deprecated: Use get_websocket_user instead and handle accept/close in endpoint.
-    This function exists for backward compatibility.
-    """
-    auth_result = await get_websocket_user(websocket, db, token)
-    
-    if not auth_result.user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
-    
-    # Accept with subprotocol if token was from protocol header
-    if auth_result.subprotocol:
-        await websocket.accept(subprotocol=auth_result.subprotocol)
-    else:
-        await websocket.accept()
-    
-    return auth_result.user
 
 
-ActiveVerifiedWSUser = Annotated[BaseUser | None, Depends(get_websocket_user_legacy)]
+ActiveVerifiedWSUser = Annotated[BaseUser | None, Depends(get_websocket_user)]
 
 
 async def reset_password(user: UserInDB, db: DBSession, new_password: str):

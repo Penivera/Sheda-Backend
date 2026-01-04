@@ -76,7 +76,8 @@ from typing import Dict, Optional, Annotated
 from core.dependecies import DBSession
 from core.logger import logger
 from app.models.chat import ChatMessage
-from app.services.user_service import get_websocket_user, WebSocketAuthResult
+from app.services.user_service import get_websocket_user
+from app.models.user import BaseUser
 
 
 router = APIRouter(tags=["WebSocket"])
@@ -89,25 +90,20 @@ class WebSocketConnectionManager:
         # Dictionary mapping user_id to their WebSocket connections
         self.active_connections: Dict[int, WebSocket] = {}
 
-    async def connect(
-        self, websocket: WebSocket, user_id: int, subprotocol: Optional[str] = None
-    ) -> bool:
+    def connect(self, websocket: WebSocket, user_id: int) -> bool:
         """
-        Accept a WebSocket connection and track it by user_id.
+        Track a WebSocket connection by user_id.
+        
+        Note: The WebSocket should already be accepted before calling this method.
         
         Args:
-            websocket: The WebSocket connection to accept
+            websocket: The WebSocket connection (already accepted)
             user_id: The authenticated user's ID
-            subprotocol: Optional subprotocol to echo back (for Sec-WebSocket-Protocol auth)
         
-        Returns True if connection was successful.
+        Returns True if connection tracking was successful.
         """
-        if subprotocol:
-            await websocket.accept(subprotocol=subprotocol)
-        else:
-            await websocket.accept()
         self.active_connections[user_id] = websocket
-        logger.info(f"WebSocket connected: user_id={user_id}, subprotocol={subprotocol}")
+        logger.info(f"WebSocket connected: user_id={user_id}")
         return True
 
     def disconnect(self, user_id: int):
@@ -195,15 +191,12 @@ async def websocket_endpoint(
     
     See module docstring for detailed payload schemas.
     """
-    # Authenticate the user
-    auth_result: WebSocketAuthResult = await get_websocket_user(websocket, db, token)
+    # Authenticate the user (handles accept/close internally)
+    current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
     
-    if not auth_result.user:
-        logger.info("WebSocket auth failed: No valid user")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    if not current_user:
+        # Connection already closed in get_websocket_user
         return
-
-    current_user = auth_result.user
 
     # Verify user_id matches the authenticated user
     if current_user.id != user_id:
@@ -213,8 +206,8 @@ async def websocket_endpoint(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Connect and track the session (with subprotocol if token was from header)
-    await ws_manager.connect(websocket, user_id, subprotocol=auth_result.subprotocol)
+    # Track the session (connection already accepted by auth)
+    ws_manager.connect(websocket, user_id)
 
     # Build user info for messages
     sender_info = {

@@ -19,7 +19,7 @@ from app.schemas.chat import (
 from app.schemas.user_schema import UserShow
 from typing import Dict, List, Optional, Annotated
 from core.dependecies import DBSession
-from app.services.user_service import ActiveUser, get_websocket_user, WebSocketAuthResult
+from app.services.user_service import ActiveUser, get_websocket_user
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from sqlalchemy import or_, and_, func, desc
@@ -40,21 +40,16 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: list[Dict[int, WebSocket]] = []
 
-    async def connect(
-        self, websocket: WebSocket, user_id: int, subprotocol: Optional[str] = None
-    ):
+    def connect(self, websocket: WebSocket, user_id: int):
         """
-        Accept a WebSocket connection and track it.
+        Track a WebSocket connection.
+        
+        Note: The WebSocket should already be accepted before calling this method.
         
         Args:
-            websocket: The WebSocket connection
+            websocket: The WebSocket connection (already accepted)
             user_id: The authenticated user's ID
-            subprotocol: Optional subprotocol to echo back
         """
-        if subprotocol:
-            await websocket.accept(subprotocol=subprotocol)
-        else:
-            await websocket.accept()
         self.active_connections.append({"user_id": user_id, "websocket": websocket}) # type: ignore
 
     def disconnect(self, websocket: WebSocket):
@@ -117,16 +112,15 @@ async def websocket_chat(
     }
     ```
     """
-    # Authenticate the user
-    auth_result: WebSocketAuthResult = await get_websocket_user(websocket, db, token)
+    # Authenticate the user (handles accept/close internally)
+    current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
     
-    if not auth_result.user:
-        logger.info("User not found or authentication failed")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    if not current_user:
+        # Connection already closed in get_websocket_user
         return
 
-    current_user = auth_result.user
-    await manager.connect(websocket, current_user.id, subprotocol=auth_result.subprotocol)
+    # Track the session (connection already accepted by auth)
+    manager.connect(websocket, current_user.id)
     current_user_show = UserShow.model_validate(current_user)
 
     try:
