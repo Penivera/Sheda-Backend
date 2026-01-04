@@ -19,7 +19,7 @@ from app.schemas.chat import (
 from app.schemas.user_schema import UserShow
 from typing import Dict, List, Optional, Annotated
 from core.dependecies import DBSession
-from app.services.user_service import ActiveUser, ActiveVerifiedWSUser
+from app.services.user_service import ActiveUser, get_websocket_user
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from sqlalchemy import or_, and_, func, desc
@@ -35,11 +35,21 @@ router = APIRouter(
 
 
 class ConnectionManager:
+    """Manages WebSocket connections for the chat router."""
+    
     def __init__(self):
         self.active_connections: list[Dict[int, WebSocket]] = []
 
-    async def connect(self, websocket: WebSocket, user_id: int):
-        await websocket.accept()
+    def connect(self, websocket: WebSocket, user_id: int):
+        """
+        Track a WebSocket connection.
+        
+        Note: The WebSocket should already be accepted before calling this method.
+        
+        Args:
+            websocket: The WebSocket connection (already accepted)
+            user_id: The authenticated user's ID
+        """
         self.active_connections.append({"user_id": user_id, "websocket": websocket}) # type: ignore
 
     def disconnect(self, websocket: WebSocket):
@@ -63,19 +73,55 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-
 @router.websocket("/ws")
 async def websocket_chat(
     websocket: WebSocket,
-    current_user: ActiveVerifiedWSUser,
     db: DBSession,
+    token: Annotated[str | None, Query()] = None,
 ):
+    """
+    WebSocket endpoint for chat messaging.
+    
+    ## Authentication
+    
+    JWT token is required and can be provided via:
+    
+    1. **Query parameter**: `/chat/ws?token={jwt_token}`
+    2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
+    
+    ## Incoming Message Format
+    ```json
+    {
+        "receiver_id": int,   // Required: Target user ID
+        "message": string     // Required: Message content
+    }
+    ```
+    
+    ## Outgoing Message Format
+    ```json
+    {
+        "id": int,
+        "sender_info": {
+            "id": int,
+            "username": string,
+            "avatar_url": string
+        },
+        "receiver_id": int,
+        "message": string,
+        "created_at": string  // ISO 8601 timestamp
+    }
+    ```
+    """
+    # Authenticate the user (handles accept/close internally)
+    current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
+    
     if not current_user:
-        logger.info("User not found")
-        return  # user was invalid, websocket already closed in dependency
+        # Connection already closed in get_websocket_user
+        return
 
-    await manager.connect(websocket, current_user.id)
-    current_user = UserShow.model_validate(current_user)
+    # Track the session (connection already accepted by auth)
+    manager.connect(websocket, current_user.id)
+    current_user_show = UserShow.model_validate(current_user)
 
     try:
         while True:
@@ -85,7 +131,7 @@ async def websocket_chat(
                 await websocket.send_text("Invalid JSON received")
                 continue
 
-            sender_id = current_user.id
+            sender_id = current_user_show.id
             receiver_id = data.get("receiver_id")
             message = data.get("message")
 
@@ -106,8 +152,8 @@ async def websocket_chat(
             
             sender_info = {
                 "id": sender_id,
-                "username": current_user.username,
-                "avatar_url": current_user.profile_pic,
+                "username": current_user_show.username,
+                "avatar_url": current_user_show.profile_pic,
                 }
             payload = {
                 "id": db_message.id,
