@@ -1,15 +1,82 @@
 """
 WebSocket service for real-time messaging.
-Endpoint: /ws/{user_id}
-Authentication: JWT/Token from query parameter (?token=...) or Sec-WebSocket-Protocol header (Bearer.{token})
+
+## Endpoints
+
+### /ws/{user_id}
+Main WebSocket endpoint for real-time chat messaging.
+
+## Authentication
+
+JWT token is required and can be provided via:
+
+1. **Query Parameter** (Recommended for browsers):
+   ```
+   /ws/{user_id}?token={jwt_token}
+   ```
+
+2. **Sec-WebSocket-Protocol Header** (For WebSocket clients):
+   - Format: `Bearer.{jwt_token}`
+   - The server will echo back the protocol on successful connection
+   
+   Example in JavaScript:
+   ```javascript
+   new WebSocket('ws://host/ws/123', ['Bearer.eyJhbGciOiJIUzI1NiIs...'])
+   ```
+
+## Message Payloads
+
+### Incoming Message (Client → Server)
+```json
+{
+    "receiver_id": int,      // Required: Target user ID
+    "message": string,       // Required: Message content
+    "property_id": int       // Optional: Property ID for property discussions
+}
+```
+
+### Outgoing Message (Server → Client)
+```json
+{
+    "id": int,               // Message ID
+    "sender_info": {
+        "id": int,
+        "username": string,
+        "avatar_url": string
+    },
+    "receiver_id": int,
+    "message": string,
+    "created_at": string,    // ISO 8601 timestamp
+    "property_id": int       // Optional
+}
+```
+
+### Confirmation Response (Server → Sender)
+```json
+{
+    "status": "sent",
+    "delivered": boolean,    // True if recipient is online
+    "message_id": int
+}
+```
+
+### Error Response
+```json
+{
+    "error": string          // Error description
+}
+```
+
+## Connection Errors
+- WS_1008_POLICY_VIOLATION: Authentication failed (invalid/missing token, inactive user)
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-from typing import Dict, Optional
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query
+from typing import Dict, Optional, Annotated
 from core.dependecies import DBSession
 from core.logger import logger
 from app.models.chat import ChatMessage
-from app.services.user_service import ActiveVerifiedWSUser
+from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
 
 router = APIRouter(tags=["WebSocket"])
@@ -22,14 +89,25 @@ class WebSocketConnectionManager:
         # Dictionary mapping user_id to their WebSocket connections
         self.active_connections: Dict[int, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: int) -> bool:
+    async def connect(
+        self, websocket: WebSocket, user_id: int, subprotocol: Optional[str] = None
+    ) -> bool:
         """
         Accept a WebSocket connection and track it by user_id.
+        
+        Args:
+            websocket: The WebSocket connection to accept
+            user_id: The authenticated user's ID
+            subprotocol: Optional subprotocol to echo back (for Sec-WebSocket-Protocol auth)
+        
         Returns True if connection was successful.
         """
-        await websocket.accept()
+        if subprotocol:
+            await websocket.accept(subprotocol=subprotocol)
+        else:
+            await websocket.accept()
         self.active_connections[user_id] = websocket
-        logger.info(f"WebSocket connected: user_id={user_id}")
+        logger.info(f"WebSocket connected: user_id={user_id}, subprotocol={subprotocol}")
         return True
 
     def disconnect(self, user_id: int):
@@ -87,52 +165,56 @@ ws_manager = WebSocketConnectionManager()
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: int,
-    current_user: ActiveVerifiedWSUser,
     db: DBSession,
+    token: Annotated[str | None, Query()] = None,
 ):
     """
     WebSocket endpoint for real-time messaging.
 
-    Authentication:
-    - Connect with query param: /ws/{user_id}?token={jwt_token}
-    - Or via Sec-WebSocket-Protocol header: Bearer.{jwt_token}
+    ## Authentication
+    
+    JWT token is required and can be provided via:
+    
+    1. **Query parameter**: `/ws/{user_id}?token={jwt_token}`
+    2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
+    
+    The `user_id` in the URL path must match the authenticated user's ID.
 
-    Note: JWT token is required for authentication.
-    Returns WS_1008_POLICY_VIOLATION (401/403 equivalent) for failed auth.
+    ## Connection Flow
+    
+    1. Client connects with token (query param or protocol header)
+    2. Server validates token and user
+    3. Server accepts connection (echoing subprotocol if used)
+    4. Server verifies user_id matches authenticated user
+    
+    ## Error Codes
+    
+    - `WS_1008_POLICY_VIOLATION`: Authentication failed or user_id mismatch
 
-    Message Format (incoming):
-    {
-        "receiver_id": int,
-        "message": str,
-        "property_id": int (optional)
-    }
-
-    Message Format (outgoing):
-    {
-        "id": int,
-        "sender_info": {
-            "id": int,
-            "username": str,
-            "avatar_url": str
-        },
-        "receiver_id": int,
-        "message": str,
-        "created_at": str (ISO format),
-        "property_id": int (optional)
-    }
+    ## Message Formats
+    
+    See module docstring for detailed payload schemas.
     """
-    if not current_user:
-        logger.info("User not found or authentication failed")
-        return  # user was invalid, websocket already closed in dependency
-
-    # Verify user_id matches the authenticated user
-    if current_user.id != user_id:
-        logger.warning(f"WebSocket auth failed: user_id mismatch (token={current_user.id}, path={user_id})")
+    # Authenticate the user
+    auth_result: WebSocketAuthResult = await get_websocket_user(websocket, db, token)
+    
+    if not auth_result.user:
+        logger.info("WebSocket auth failed: No valid user")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Connect and track the session
-    await ws_manager.connect(websocket, user_id)
+    current_user = auth_result.user
+
+    # Verify user_id matches the authenticated user
+    if current_user.id != user_id:
+        logger.warning(
+            f"WebSocket auth failed: user_id mismatch (token={current_user.id}, path={user_id})"
+        )
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Connect and track the session (with subprotocol if token was from header)
+    await ws_manager.connect(websocket, user_id, subprotocol=auth_result.subprotocol)
 
     # Build user info for messages
     sender_info = {

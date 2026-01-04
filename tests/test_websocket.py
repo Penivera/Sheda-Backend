@@ -29,7 +29,20 @@ class TestWebSocketConnectionManager:
         assert result is True
         assert user_id in self.manager.active_connections
         assert self.manager.active_connections[user_id] == mock_websocket
-        mock_websocket.accept.assert_called_once()
+        mock_websocket.accept.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_connect_with_subprotocol(self):
+        """Test that connect properly accepts with subprotocol when provided."""
+        mock_websocket = AsyncMock(spec=WebSocket)
+        user_id = 1
+        subprotocol = "Bearer.test_token"
+
+        result = await self.manager.connect(mock_websocket, user_id, subprotocol=subprotocol)
+
+        assert result is True
+        assert user_id in self.manager.active_connections
+        mock_websocket.accept.assert_called_once_with(subprotocol=subprotocol)
 
     def test_disconnect_removes_connection(self):
         """Test that disconnect removes the user's connection."""
@@ -110,30 +123,30 @@ class TestGetWebSocketUser:
     @pytest.mark.asyncio
     async def test_auth_fails_without_token(self):
         """Test that authentication fails when no token is provided."""
-        from app.services.user_service import get_websocket_user
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
         mock_websocket = MagicMock(spec=WebSocket)
         mock_websocket.headers = {}
-        mock_websocket.close = AsyncMock()
         mock_db = AsyncMock()
 
         result = await get_websocket_user(
             websocket=mock_websocket, db=mock_db, token=None
         )
 
-        assert result is None
-        mock_websocket.close.assert_called_once()
+        assert isinstance(result, WebSocketAuthResult)
+        assert result.user is None
+        assert result.subprotocol is None
+        assert result.token_source is None
 
     @pytest.mark.asyncio
     async def test_auth_extracts_token_from_bearer_protocol(self):
         """Test token extraction from Sec-WebSocket-Protocol header with Bearer prefix."""
-        from app.services.user_service import get_websocket_user
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
         mock_websocket = MagicMock(spec=WebSocket)
         mock_websocket.headers = {
             "sec-websocket-protocol": "Bearer.test_token_value"
         }
-        mock_websocket.close = AsyncMock()
         mock_db = AsyncMock()
 
         with patch("app.services.user_service.jwt.decode") as mock_jwt:
@@ -151,17 +164,19 @@ class TestGetWebSocketUser:
                     websocket=mock_websocket, db=mock_db, token=None
                 )
 
-                assert result is not None
-                assert result.id == 1
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is not None
+                assert result.user.id == 1
+                assert result.subprotocol == "Bearer.test_token_value"
+                assert result.token_source == "protocol_header"
 
     @pytest.mark.asyncio
     async def test_auth_with_query_token(self):
         """Test authentication with token provided via query parameter."""
-        from app.services.user_service import get_websocket_user
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
         mock_websocket = MagicMock(spec=WebSocket)
         mock_websocket.headers = {}
-        mock_websocket.close = AsyncMock()
         mock_db = AsyncMock()
 
         with patch("app.services.user_service.jwt.decode") as mock_jwt:
@@ -179,17 +194,19 @@ class TestGetWebSocketUser:
                     websocket=mock_websocket, db=mock_db, token="query_token"
                 )
 
-                assert result is not None
-                assert result.id == 1
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is not None
+                assert result.user.id == 1
+                assert result.subprotocol is None  # No subprotocol for query token
+                assert result.token_source == "query"
 
     @pytest.mark.asyncio
     async def test_auth_fails_for_inactive_user(self):
         """Test that authentication fails for inactive users."""
-        from app.services.user_service import get_websocket_user
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
         mock_websocket = MagicMock(spec=WebSocket)
         mock_websocket.headers = {}
-        mock_websocket.close = AsyncMock()
         mock_db = AsyncMock()
 
         with patch("app.services.user_service.jwt.decode") as mock_jwt:
@@ -206,17 +223,16 @@ class TestGetWebSocketUser:
                     websocket=mock_websocket, db=mock_db, token="valid_token"
                 )
 
-                assert result is None
-                mock_websocket.close.assert_called_once()
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is None
 
     @pytest.mark.asyncio
     async def test_auth_fails_for_unverified_user(self):
         """Test that authentication fails for unverified users."""
-        from app.services.user_service import get_websocket_user
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
 
         mock_websocket = MagicMock(spec=WebSocket)
         mock_websocket.headers = {}
-        mock_websocket.close = AsyncMock()
         mock_db = AsyncMock()
 
         with patch("app.services.user_service.jwt.decode") as mock_jwt:
@@ -233,8 +249,152 @@ class TestGetWebSocketUser:
                     websocket=mock_websocket, db=mock_db, token="valid_token"
                 )
 
-                assert result is None
-                mock_websocket.close.assert_called_once()
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is None
+
+    @pytest.mark.asyncio
+    async def test_auth_with_access_token_subprotocol_format(self):
+        """Test token extraction from access_token subprotocol format."""
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
+
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.headers = {
+            "sec-websocket-protocol": "access_token, eyJhbGciOiJIUzI1NiIs"
+        }
+        mock_db = AsyncMock()
+
+        with patch("app.services.user_service.jwt.decode") as mock_jwt:
+            mock_jwt.return_value = {"sub": "1", "scopes": ["client"]}
+
+            with patch("app.services.user_service.get_user") as mock_get_user:
+                mock_user = MagicMock()
+                mock_user.id = 1
+                mock_user.is_active = True
+                mock_user.verified = True
+                mock_user.email = "test@example.com"
+                mock_get_user.return_value = mock_user
+
+                result = await get_websocket_user(
+                    websocket=mock_websocket, db=mock_db, token=None
+                )
+
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is not None
+                assert result.subprotocol == "access_token"
+                assert result.token_source == "protocol_header"
+
+    @pytest.mark.asyncio
+    async def test_auth_with_raw_jwt_in_protocol(self):
+        """Test token extraction when raw JWT is in protocol header."""
+        from app.services.user_service import get_websocket_user, WebSocketAuthResult
+
+        mock_websocket = MagicMock(spec=WebSocket)
+        # JWT tokens have dots in them
+        mock_websocket.headers = {
+            "sec-websocket-protocol": "eyJhbGciOiJIUzI1NiIs.payload.signature"
+        }
+        mock_db = AsyncMock()
+
+        with patch("app.services.user_service.jwt.decode") as mock_jwt:
+            mock_jwt.return_value = {"sub": "1", "scopes": ["client"]}
+
+            with patch("app.services.user_service.get_user") as mock_get_user:
+                mock_user = MagicMock()
+                mock_user.id = 1
+                mock_user.is_active = True
+                mock_user.verified = True
+                mock_user.email = "test@example.com"
+                mock_get_user.return_value = mock_user
+
+                result = await get_websocket_user(
+                    websocket=mock_websocket, db=mock_db, token=None
+                )
+
+                assert isinstance(result, WebSocketAuthResult)
+                assert result.user is not None
+                assert result.token_source == "protocol_header"
+
+
+class TestLegacyGetWebSocketUser:
+    """Tests for the legacy WebSocket authentication wrapper."""
+
+    @pytest.mark.asyncio
+    async def test_legacy_auth_accepts_with_subprotocol(self):
+        """Test that legacy auth properly accepts connection with subprotocol."""
+        from app.services.user_service import get_websocket_user_legacy
+
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.headers = {
+            "sec-websocket-protocol": "Bearer.test_token"
+        }
+        mock_websocket.accept = AsyncMock()
+        mock_websocket.close = AsyncMock()
+        mock_db = AsyncMock()
+
+        with patch("app.services.user_service.jwt.decode") as mock_jwt:
+            mock_jwt.return_value = {"sub": "1", "scopes": ["client"]}
+
+            with patch("app.services.user_service.get_user") as mock_get_user:
+                mock_user = MagicMock()
+                mock_user.id = 1
+                mock_user.is_active = True
+                mock_user.verified = True
+                mock_user.email = "test@example.com"
+                mock_get_user.return_value = mock_user
+
+                result = await get_websocket_user_legacy(
+                    websocket=mock_websocket, db=mock_db, token=None
+                )
+
+                assert result is not None
+                assert result.id == 1
+                mock_websocket.accept.assert_called_once_with(subprotocol="Bearer.test_token")
+
+    @pytest.mark.asyncio
+    async def test_legacy_auth_accepts_without_subprotocol(self):
+        """Test that legacy auth properly accepts connection without subprotocol for query token."""
+        from app.services.user_service import get_websocket_user_legacy
+
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.headers = {}
+        mock_websocket.accept = AsyncMock()
+        mock_websocket.close = AsyncMock()
+        mock_db = AsyncMock()
+
+        with patch("app.services.user_service.jwt.decode") as mock_jwt:
+            mock_jwt.return_value = {"sub": "1", "scopes": ["client"]}
+
+            with patch("app.services.user_service.get_user") as mock_get_user:
+                mock_user = MagicMock()
+                mock_user.id = 1
+                mock_user.is_active = True
+                mock_user.verified = True
+                mock_user.email = "test@example.com"
+                mock_get_user.return_value = mock_user
+
+                result = await get_websocket_user_legacy(
+                    websocket=mock_websocket, db=mock_db, token="query_token"
+                )
+
+                assert result is not None
+                mock_websocket.accept.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_legacy_auth_closes_on_failure(self):
+        """Test that legacy auth closes connection on authentication failure."""
+        from app.services.user_service import get_websocket_user_legacy
+
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.headers = {}
+        mock_websocket.close = AsyncMock()
+        mock_db = AsyncMock()
+
+        result = await get_websocket_user_legacy(
+            websocket=mock_websocket, db=mock_db, token=None
+        )
+
+        assert result is None
+        mock_websocket.close.assert_called_once()
 
 
 class TestGlobalConnectionManager:
