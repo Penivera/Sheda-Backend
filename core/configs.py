@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
     # SECTION FastAdmin / Admin Seeding
+    
+    ADMIN_ROUTE: str = Field(
+        ..., description="FastAdmin route prefix"
+    )
 
     ADMIN_SEED_ENABLED: bool = Field(
         default=False, description="Enable admin seeding on startup"

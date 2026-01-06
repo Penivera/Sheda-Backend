@@ -55,7 +55,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(ErrorHandlerMiddleware)
 
-    app.mount("/admin", admin_app)
+    app.mount(settings.ADMIN_ROUTE, admin_app)
 
     return app
 
