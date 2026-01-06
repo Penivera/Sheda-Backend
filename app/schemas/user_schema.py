@@ -104,17 +104,17 @@ FileDir = Literal["profile", "property"]
 
 
 class AgentFeed(BaseModel):
-    profile_pic: Union[AnyUrl, str] = None  # type: ignore # type: ignore
-    username: str
+    profile_pic: Optional[Union[AnyUrl, str]] = None
+    username: Optional[str] = None
     email: EmailStr
-    phone_number: PhoneStr
-    agency_name: str
-    location: str
-    kyc_status: KycStatusEnum
-    last_seen: datetime
-    rating: float
-    listing: List[PropertyShow] = []
-    availbilities: List[AvailabilityShow] = []
+    phone_number: Optional[PhoneStr] = None
+    agency_name: Optional[str] = None
+    location: Optional[str] = None
+    kyc_status: Optional[KycStatusEnum] = None
+    last_seen: Optional[datetime] = None
+    rating: Optional[float] = None
+    listings: List[PropertyShow] = []
+    availabilities: List[AvailabilityShow] = []
 
     class Config:
         from_attributes = True

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import auth, listing, user, chat, media
+from app.routers import auth, listing, user, chat, media, websocket
 from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
