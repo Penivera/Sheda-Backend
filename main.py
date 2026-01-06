@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.routers import auth, listing, user, chat, media, websocket
@@ -56,7 +57,9 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(ErrorHandlerMiddleware)
 
-    # Mount static files directory
+    # Mount static files directory (create if not exists for production)
+    if not os.path.exists("static"):
+        os.makedirs("static")
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
     app.mount(settings.ADMIN_ROUTE, admin_app)
