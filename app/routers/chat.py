@@ -1,4 +1,11 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query, HTTPException
+from fastapi import (
+    APIRouter,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+    Query,
+    HTTPException,
+)
 from app.models.chat import ChatMessage
 from app.models.user import BaseUser
 from app.models.property import Property, PropertyImage
@@ -17,7 +24,7 @@ from app.schemas.chat import (
     MessageHistoryParams,
 )
 from app.schemas.user_schema import UserShow
-from typing import Dict, List, Optional, Annotated
+from typing import Dict, List, Optional, Annotated, Any
 from core.dependecies import DBSession
 from app.services.user_service import ActiveUser, get_websocket_user
 from sqlalchemy.future import select
@@ -36,25 +43,25 @@ router = APIRouter(
 
 class ConnectionManager:
     """Manages WebSocket connections for the chat router."""
-    
+
     def __init__(self):
-        self.active_connections: list[Dict[int, WebSocket]] = []
+        self.active_connections: List[Dict[str, Any]] = []
 
     def connect(self, websocket: WebSocket, user_id: int):
         """
         Track a WebSocket connection.
-        
+
         Note: The WebSocket should already be accepted before calling this method.
-        
+
         Args:
             websocket: The WebSocket connection (already accepted)
             user_id: The authenticated user's ID
         """
-        self.active_connections.append({"user_id": user_id, "websocket": websocket}) # type: ignore
+        self.active_connections.append({"user_id": user_id, "websocket": websocket})
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections = [
-            conn for conn in self.active_connections if conn["websocket"] != websocket  # type: ignore
+            conn for conn in self.active_connections if conn["websocket"] != websocket
         ]
 
     async def send_personal_message(self, message: dict, user_id: int):
@@ -66,7 +73,7 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
-            await connection["websocket"].send_text(message)  # type: ignore
+            await connection["websocket"].send_text(message)
 
 
 manager = ConnectionManager()
@@ -80,14 +87,14 @@ async def websocket_chat(
 ):
     """
     WebSocket endpoint for chat messaging.
-    
+
     ## Authentication
-    
+
     JWT token is required and can be provided via:
-    
+
     1. **Query parameter**: `/chat/ws?token={jwt_token}`
     2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
-    
+
     ## Incoming Message Format
     ```json
     {
@@ -95,7 +102,7 @@ async def websocket_chat(
         "message": string     // Required: Message content
     }
     ```
-    
+
     ## Outgoing Message Format
     ```json
     {
@@ -113,7 +120,7 @@ async def websocket_chat(
     """
     # Authenticate the user (handles accept/close internally)
     current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
-    
+
     if not current_user:
         # Connection already closed in get_websocket_user
         return
@@ -151,7 +158,7 @@ async def websocket_chat(
                 "id": sender_id,
                 "username": current_user_show.username,
                 "avatar_url": current_user_show.profile_pic,
-                }
+            }
             payload = {
                 "id": db_message.id,
                 "sender_info": sender_info,
@@ -178,7 +185,13 @@ async def chat_history(
     db: DBSession,
     pagination: Annotated[ChatPaginationParams, Query()],
 ):
-    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(pagination.offset).limit(pagination.limit)
+    query = (
+        select(ChatMessage)
+        .where(ChatMessage.sender_id == current_user.id)
+        .order_by(ChatMessage.timestamp.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
     result: Result = await db.execute(query)
     chats = result.scalars().all()
     return chats
@@ -200,13 +213,19 @@ async def get_user_info(user_id: int, db: DBSession) -> Optional[UserInfoSchema]
     return None
 
 
-async def get_property_info(property_id: int, db: DBSession) -> Optional[PropertyInfoSchema]:
+async def get_property_info(
+    property_id: int, db: DBSession
+) -> Optional[PropertyInfoSchema]:
     """Fetch minimal property info for chat context"""
     query = select(Property).where(Property.id == property_id)
     result = await db.execute(query)
     property_obj = result.scalar_one_or_none()
     if property_obj:
-        images = [img.image_url for img in property_obj.images] if property_obj.images else []
+        images = (
+            [img.image_url for img in property_obj.images]
+            if property_obj.images
+            else []
+        )
         return PropertyInfoSchema(
             id=property_obj.id,
             title=property_obj.title,
@@ -302,7 +321,8 @@ async def get_conversations(
             and_(
                 ChatMessage.sender_id == other_user_id,
                 ChatMessage.receiver_id == user_id,
-                ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+                ChatMessage.is_read
+                == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
             )
         )
         unread_result = await db.execute(unread_query)
@@ -323,7 +343,9 @@ async def get_conversations(
         conversation = ConversationSchema(
             other_user_id=other_user_id,
             other_user_name=other_user_info.username if other_user_info else None,
-            other_user_profile_pic=other_user_info.profile_pic if other_user_info else None,
+            other_user_profile_pic=(
+                other_user_info.profile_pic if other_user_info else None
+            ),
             other_user_fullname=other_user_info.fullname if other_user_info else None,
             last_message=last_message.message if last_message else None,
             last_message_timestamp=last_message.timestamp if last_message else None,
@@ -401,8 +423,12 @@ async def get_message_history(
     # Build detailed response
     detailed_messages = []
     for msg in messages:
-        sender_info = current_user_info if msg.sender_id == current_user_id else other_user
-        receiver_info = other_user if msg.sender_id == current_user_id else current_user_info
+        sender_info = (
+            current_user_info if msg.sender_id == current_user_id else other_user
+        )
+        receiver_info = (
+            other_user if msg.sender_id == current_user_id else current_user_info
+        )
 
         property_info = None
         if msg.property_id:
@@ -492,7 +518,9 @@ async def send_message(
         },
         "receiver_id": new_message.receiver_id,
         "message": new_message.message,
-        "created_at": new_message.timestamp.isoformat() if new_message.timestamp else None,
+        "created_at": (
+            new_message.timestamp.isoformat() if new_message.timestamp else None
+        ),
         "property_id": new_message.property_id,
     }
     await manager.send_personal_message(payload, receiver_id)
@@ -539,7 +567,8 @@ async def mark_messages_read(
         and_(
             ChatMessage.sender_id == sender_id,
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     result = await db.execute(query)
@@ -578,7 +607,8 @@ async def get_unread_count(
     total_unread_query = select(func.count(ChatMessage.id)).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     total_unread_result = await db.execute(total_unread_query)
@@ -590,7 +620,8 @@ async def get_unread_count(
     ).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     conversations_result = await db.execute(conversations_query)
