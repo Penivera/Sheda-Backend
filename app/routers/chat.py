@@ -1,11 +1,11 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status,Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query
 from app.models.chat import ChatMessage
 from app.models.user import BaseUser
 from app.schemas.chat import ChatMessageSchema
 from app.schemas.user_schema import UserShow
 from typing import Dict
 from core.dependecies import DBSession
-from app.services.user_service import ActiveUser,ActiveVerifiedWSUser
+from app.services.user_service import ActiveUser, ActiveVerifiedWSUser
 from typing import List
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
@@ -25,11 +25,11 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()
-        self.active_connections.append({"user_id": user_id, "websocket": websocket}) # type: ignore
+        self.active_connections.append({"user_id": user_id, "websocket": websocket})  # type: ignore
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections = [
-            conn for conn in self.active_connections if conn["websocket"] != websocket # type: ignore
+            conn for conn in self.active_connections if conn["websocket"] != websocket  # type: ignore
         ]
 
     async def send_personal_message(self, message: dict, user_id: int):
@@ -41,12 +41,10 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
-            await connection["websocket"].send_text(message) # type: ignore
-    
+            await connection["websocket"].send_text(message)  # type: ignore
 
 
 manager = ConnectionManager()
-
 
 
 @router.websocket("/ws")
@@ -86,25 +84,23 @@ async def websocket_chat(
             db.add(db_message)
             await db.commit()
             await db.refresh(db_message)
-            
-        
-            
+
             sender_info = {
                 "id": sender_id,
                 "username": current_user.username,
-                "avatar_url": current_user.profile_pic,
-                }
+                "avatar_url": current_user.avatar_url,
+            }
             payload = {
                 "id": db_message.id,
                 "sender_info": sender_info,
                 "receiver_id": db_message.receiver_id,
                 "message": db_message.message,
-                "created_at": db_message.timestamp.isoformat() if db_message.timestamp else None,
-                }
-
+                "created_at": (
+                    db_message.timestamp.isoformat() if db_message.timestamp else None
+                ),
+            }
 
             await manager.send_personal_message(payload, receiver_id)
-
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -115,10 +111,19 @@ async def websocket_chat(
     response_model=List[ChatMessageSchema],
     status_code=status.HTTP_200_OK,
 )
-async def chat_history(current_user: ActiveUser, db: DBSession,
-                       offset: int = Query(0, ge=0, description="Number of messages to skip"),
-    limit: int = Query(100, ge=1, le=200, description="Number of messages to return"),):
-    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(offset).limit(limit)
+async def chat_history(
+    current_user: ActiveUser,
+    db: DBSession,
+    offset: int = Query(0, ge=0, description="Number of messages to skip"),
+    limit: int = Query(100, ge=1, le=200, description="Number of messages to return"),
+):
+    query = (
+        select(ChatMessage)
+        .where(ChatMessage.sender_id == current_user.id)
+        .order_by(ChatMessage.timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     result: Result = await db.execute(query)
     chats = result.scalars().all()
     return chats

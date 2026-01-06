@@ -21,7 +21,8 @@ PhoneStr = Annotated[
 class AccountTypeEnum(str, Enum):
     client = "client"
     agent = "agent"
-    
+    admin = "admin"
+
     @staticmethod
     def to_list() -> list:
         return [e.value for e in AccountTypeEnum]
@@ -65,7 +66,6 @@ class PropertyStatEnum(str, Enum):
     available = "available"
     sold = "sold"
     rented = "rented"
-    
 
 
 class UserRole(str, Enum):

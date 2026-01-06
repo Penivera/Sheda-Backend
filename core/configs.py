@@ -5,18 +5,17 @@ from passlib.context import CryptContext
 from datetime import timedelta
 import redis.asyncio as aioredis
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
-import json
+from pydantic import Field, computed_field
+from typing import Optional
 
 
 load_dotenv()
 
 
-
-
-
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    # Don't crash on additional keys in `.env` that aren't modeled here
+    # (e.g., admin seeding vars used by `core.admin.seed`).
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     pwd_context: CryptContext = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     # General description
@@ -24,6 +23,10 @@ class Settings(BaseSettings):
         default="Once accounts are created they are stored temporarily for 2 hours "
         "before deletion if email verification is not completed"
     )
+
+    @computed_field
+    def BASE_DIR(self) -> str:
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     # Security
     SECRET_KEY: str = Field(..., description="JWT secret key")
@@ -43,10 +46,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = Field(..., description="App password for email")
     SMTP_HOST: str = Field(..., description="Email host")
     SMTP_PORT: int = Field(default=2525, description="Email port")
-    SMTP_SEND_FROM_MAIL: str = Field(...,description="Email address for sending emails"
+    SMTP_SEND_FROM_MAIL: str = Field(
+        ..., description="Email address for sending emails"
     )
-    
-
 
     # Database
     DB_URL: str = Field(..., description="Database connection URL")
@@ -74,13 +76,35 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str = Field(..., description="Cloudinary Api Key")
     CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
+    # SECTION FastAdmin / Admin Seeding
+
+    ADMIN_SEED_ENABLED: bool = Field(
+        default=False, description="Enable admin seeding on startup"
+    )
+    ADMIN_SEED_USERNAME: str | None = Field(
+        default=None, description="Username for seeded superadmin"
+    )
+    ADMIN_SEED_PASSWORD: str | None = Field(
+        default=None, description="Password for seeded superadmin"
+    )
+    ADMIN_SEED_EMAIL: str | None = Field(
+        default=None, description="Email for seeded superadmin"
+    )
+    ADMIN_USER_MODEL: str = Field(
+        default="Admin", description="FastAdmin user model class name"
+    )
+    ADMIN_USER_MODEL_USERNAME_FIELD: str = Field(
+        default="username", description="FastAdmin username field"
+    )
+    ADMIN_SECRET_KEY: str = Field(..., description="FastAdmin session signing key")
+
     # Redis keys
     BLACKLIST_PREFIX: str = "blacklist:{}"
     USER_DATA_PREFIX: str = "user_data:{}"
     OTP_PREFIX: str = "otp:{}"
 
     # Directories
-    TEMPLATES_DIR: str = os.path.join(os.getcwd(), "app", "templates")
+    TEMPLATES_DIR: str = os.path.join(os.getcwd(), "templates")
     MEDIA_DIR: str = os.path.join(os.getcwd(), "media")
 
     # Middleware
@@ -105,7 +129,7 @@ class Settings(BaseSettings):
 
     # Templates
     TEMPLATES: dict = {
-        "otp": "otp_email.txt",
+        "otp": "otp_email.html",
         "welcome": "welcome_email.txt",
         "reset_password": "reset_password.txt",
     }
@@ -131,4 +155,6 @@ settings = Settings()  # type: ignore
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)
 
 
-redis: aioredis.Redis = aioredis.from_url(settings.REDIS_URL)
+redis: aioredis.Redis = aioredis.from_url(
+    settings.REDIS_URL, decode_responses=True, encoding="utf8"
+)

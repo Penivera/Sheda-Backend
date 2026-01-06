@@ -5,6 +5,7 @@ from typing import Any
 from datetime import datetime, timezone
 from pydantic import AnyUrl
 import os
+from cloudinary import uploader
 
 
 def decode_url(url: AnyUrl) -> str:
@@ -60,3 +61,17 @@ async def read_media_dir() -> list[str] | None:
             ]
             logger.info(file_list)
         return file_list
+
+async def upload_media_file_to_cloudinary(base64:str):
+    #convert base64 to bytes
+    file_bytes = base64.encode('utf-8')
+    try:
+        upload_result = uploader.upload(
+            file_bytes,
+            overwrite=True,
+        )
+        return upload_result.get("secure_url")  # type: ignore
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        return None
+

@@ -16,7 +16,7 @@ connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else 
 
 
 engine = create_async_engine(url=db_url, connect_args=connect_args)
-AsyncSessionLocal = async_sessionmaker(bind=engine)
+AsyncSessionLocal = async_sessionmaker(bind=engine,expire_on_commit=False)
 Base = declarative_base()
 
 
