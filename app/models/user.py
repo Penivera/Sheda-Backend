@@ -14,10 +14,15 @@ from sqlalchemy import (
 )
 import uuid
 from sqlalchemy.orm import mapped_column, Mapped, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.utils.enums import AccountTypeEnum, KycStatusEnum, UserRole
 from typing import Optional, Any, Self
 from fastadmin import SqlAlchemyModelAdmin, register
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 # NOTE - Base User Model
@@ -58,13 +63,13 @@ class BaseUser(Base):
         default=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
     )
     verified: Mapped[bool] = mapped_column(
         Boolean,
@@ -76,7 +81,7 @@ class BaseUser(Base):
         nullable=True,
     )
     last_seen: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
     fullname: Mapped[str] = mapped_column(
         String(50),

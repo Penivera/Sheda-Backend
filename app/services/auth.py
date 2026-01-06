@@ -81,7 +81,7 @@ async def get_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    user.last_seen = datetime.now()
+    user.last_seen = datetime.now(timezone.utc)
     await db.refresh(user)
     return user
 
@@ -97,8 +97,6 @@ async def authenticate_user(login_data: LoginData, db: AsyncSession) -> UserInDB
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Password"
         )
     return user
-
-
 
 
 async def create_access_token(data: TokenData, expire_time=None):
