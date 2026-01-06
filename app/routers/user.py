@@ -84,18 +84,21 @@ async def update_me(
 
 
 # NOTE - Delete
-@router.delete("/me", status_code=status.HTTP_202_ACCEPTED)
+@router.delete("/me", status_code=status.HTTP_202_ACCEPTED, response_model=dict)
 async def delete_account(current_user: ActiveUser, db: DBSession):
     current_user.is_active = False
     current_user.is_deleted = True
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
+    return {"message": "Account deleted successfully"}
 
 
-# NOTE Get agent availability
-@router.get(
-    "/book-appointment", status_code=status.HTTP_200_OK, response_model=AppointmentShow
+# NOTE Book agent appointment
+@router.post(
+    "/book-appointment",
+    status_code=status.HTTP_201_CREATED,
+    response_model=AppointmentShow,
 )
 async def book_appointment(
     current_user: ActiveVerifiedClient, payload: AppointmentSchema, db: DBSession
@@ -138,11 +141,11 @@ async def create_payment_info(
     status_code=status.HTTP_200_OK,
     response_model=List[AccountInfoShow],
 )
-async def get_payment_info(  # type: ignore
+async def get_user_payment_info(
     *, user_id: Optional[int] = Query(None), db: DBSession, current_user: ActiveUser
-):  # type: ignore # type: ignore
+):
     user_id = user_id or current_user.id
-    return await get_account_info(db, user_id)  # type: ignore
+    return await get_account_info(db, user_id)
 
 
 @router.put(
@@ -161,7 +164,7 @@ async def update_payment_info(
 
 @router.delete(
     "/delete-accnt-info/{account_info_id}",
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     response_model=dict,
 )
 async def delete_account_info(
@@ -175,8 +178,12 @@ async def delete_account_info(
     response_model=AccountInfoBase,
     status_code=status.HTTP_200_OK,
 )
-async def get_payment_info(contract_id: int, db: DBSession, current_user: ActiveUser):
-    return await get_payment_info(contract_id, db)  # type: ignore
+async def get_contract_payment_info(
+    contract_id: int, db: DBSession, current_user: ActiveUser
+):
+    from app.services.listing import get_payment_info as get_payment_info_service
+
+    return await get_payment_info_service(contract_id, db)
 
 
 # NOTE create availability
