@@ -1,5 +1,5 @@
 from sqlalchemy.orm.relationships import _RelationshipDeclared
-from core.database import Base
+from core.database import Base, AsyncSessionLocal
 from sqlalchemy import (
     String,
     Boolean,
@@ -9,11 +9,15 @@ from sqlalchemy import (
     ForeignKey,
     CheckConstraint,
     UniqueConstraint,
+    select,
+    update,
 )
+import uuid
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime
 from app.utils.enums import AccountTypeEnum, KycStatusEnum, UserRole
-from typing import Optional,Any
+from typing import Optional, Any, Self
+from fastadmin import SqlAlchemyModelAdmin, register
 
 
 # NOTE - Base User Model
@@ -25,7 +29,7 @@ class BaseUser(Base):
         nullable=True,
         index=True,
     )
-    profile_pic: Mapped[str] = mapped_column(
+    avatar_url: Mapped[str] = mapped_column(
         String(255),
         nullable=True,
     )
@@ -122,6 +126,11 @@ class BaseUser(Base):
         ),
     )
 
+    def __str__(self) -> str:
+        return (
+            f"User(id={self.id}, email={self.email}, account_type={self.account_type})"
+        )
+
 
 # NOTE -  Buyer Model
 class Client(BaseUser):
@@ -130,7 +139,9 @@ class Client(BaseUser):
         ForeignKey("user.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    properties: _RelationshipDeclared[Any] = relationship("Property", back_populates="client", lazy="selectin")
+    properties: _RelationshipDeclared[Any] = relationship(
+        "Property", back_populates="client", lazy="selectin"
+    )
     appointments = relationship(
         "Appointment",
         back_populates="client",
@@ -187,7 +198,89 @@ class Agent(BaseUser):
         cascade="all, delete-orphan",
     )
 
-
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }
+
+
+class Admin(BaseUser):
+    __tablename__ = "admin"
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    __mapper_args__ = {
+        "polymorphic_identity": AccountTypeEnum.admin,
+    }
+
+
+@register(Admin, sqlalchemy_sessionmaker=AsyncSessionLocal)
+class UserAdmin(SqlAlchemyModelAdmin):
+    """Admin model for managing users."""
+
+    icon = "fa fa-user-shield"
+    list_display = (
+        "id",
+        "email",
+        "username",
+        "role",
+        "is_active",
+        "created_at",
+        "profile_pic",
+    )
+    search_fields = ("email", "username")
+    list_filter = ("id", "username", "is_superuser", "is_active", "role")
+
+    async def authenticate(
+        self, username: str, password: str
+    ) -> uuid.UUID | int | None:
+        from app.utils.utils import verify_password
+        from core.logger import logger
+
+        sessionmaker = self.get_sessionmaker()
+        async with sessionmaker() as session:
+            query = await session.execute(
+                select(Admin).where(
+                    Admin.username == username,
+                    Admin.is_superuser == True,  # noqa: E712
+                )
+            )
+            user = query.scalar_one_or_none()
+            if not user or not verify_password(password, user.password):
+                return None
+        logger.info(f"Admin {username} authenticated successfully.")
+        return user.id
+
+    async def change_password(self, id: uuid.UUID | int, password: str) -> None:
+        from app.utils.utils import hash_password
+
+        sessionmaker = self.get_sessionmaker()
+        async with sessionmaker() as session:
+            query = await session.execute(select(Admin).where(Admin.id == id))
+            user = query.scalar_one_or_none()
+            if user:
+                user.password = hash_password(password)
+                await session.commit()
+
+    async def orm_save_upload_field(self, obj: Any, field: str, base64: str) -> None:
+        sessionmaker = self.get_sessionmaker()
+        from app.utils.utils import upload_media_file_to_cloudinary
+
+        media_url = await upload_media_file_to_cloudinary(base64)
+        if not media_url:
+            return
+        setattr(obj, field, media_url)
+        async with sessionmaker() as session:
+            query = (
+                update(self.model_cls)
+                .where(BaseUser.id.in_([obj.id]))
+                .values(**{field: media_url})
+            )
+            await session.execute(query)
+            await session.commit()

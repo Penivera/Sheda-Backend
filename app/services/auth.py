@@ -1,12 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import BaseUser, Client, Agent
-from fastapi import status, HTTPException
+from fastapi import status, HTTPException, BackgroundTasks
 from sqlalchemy.future import select
 from email_validator import validate_email, EmailNotValidError
 import re
 from app.schemas.auth_schema import LoginData, Token, TokenData, SignUpShow
 from app.schemas.user_schema import UserInDB, UserCreate, UserShow
 from app.utils.utils import verify_password
+from app.utils.email import create_send_otp
 from datetime import datetime, timezone, timedelta
 from core.configs import settings
 from core.dependecies import DBSession
@@ -98,6 +99,8 @@ async def authenticate_user(login_data: LoginData, db: AsyncSession) -> UserInDB
     return user
 
 
+
+
 async def create_access_token(data: TokenData, expire_time=None):
     expiration = (
         timedelta(minutes=expire_time) if expire_time else settings.expire_delta
@@ -111,8 +114,11 @@ async def create_access_token(data: TokenData, expire_time=None):
     return encoded_jwt
 
 
-async def process_signup(user_data: UserCreate, db: AsyncSession):
+async def process_signup(
+    user_data: UserCreate, db: AsyncSession, background_tasks: BackgroundTasks
+):
     new_user = await create_account(user_data, db)
+    background_tasks.add_task(create_send_otp, new_user.email)
     token_data = TokenData(sub=new_user.id, scopes=[new_user.account_type.value])  # type: ignore
     access_token = await create_access_token(data=token_data)
     return SignUpShow(

@@ -16,15 +16,20 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
 def render_template(env: Environment, template_name: str, **context) -> str:
     """Renders an email template dynamically."""
     template = env.get_template(template_name)
     return template.render(**context)
 
+
 MailTextType = Literal["plain", "html"]
 
+
 class EmailSender:
-    def __init__(self, smtp_host: str, smtp_user: str, smtp_pass: str, from_email: str,port:int):
+    def __init__(
+        self, smtp_host: str, smtp_user: str, smtp_pass: str, from_email: str, port: int
+    ):
         self.smtp_host = smtp_host
         self.smtp_user = smtp_user
         self.smtp_pass = smtp_pass
@@ -37,7 +42,9 @@ class EmailSender:
         to_email: str,
         subject: str,
         text_type: MailTextType = "plain",
-        attachments: Optional[List[Union[str, Tuple[str, str]]]] = None,  # Now supports single file paths too
+        attachments: Optional[
+            List[Union[str, Tuple[str, str]]]
+        ] = None,  # Now supports single file paths too
     ) -> bool:
         """Sends an email using SMTP with optional file attachments."""
         try:
@@ -54,7 +61,9 @@ class EmailSender:
                 for attachment in attachments:
                     if isinstance(attachment, str):
                         filepath = attachment
-                        filename = os.path.basename(filepath)  # Default to actual file name
+                        filename = os.path.basename(
+                            filepath
+                        )  # Default to actual file name
                     else:
                         filepath, filename = attachment
 
@@ -68,7 +77,7 @@ class EmailSender:
                     msg.attach(part)
 
             # Send email
-            smtp = smtplib.SMTP(self.smtp_host,port=self.port)
+            smtp = smtplib.SMTP(self.smtp_host, port=self.port)
             smtp.starttls()
             smtp.login(user=self.smtp_user, password=self.smtp_pass)
             smtp.sendmail(self.from_email, to_email, msg.as_string())
@@ -80,13 +89,14 @@ class EmailSender:
             logger.error(f"Failed to send email: {str(e)}")
             return False
 
+
 email_sender = EmailSender(
     smtp_host=settings.SMTP_HOST,
     smtp_user=settings.SMTP_USERNAME,
     smtp_pass=settings.SMTP_PASSWORD,
     from_email=settings.SMTP_SEND_FROM_MAIL,
     port=settings.SMTP_PORT,
-)  
+)
 
 
 async def create_send_otp(email: str, length: int = 4) -> int:
@@ -98,9 +108,10 @@ async def create_send_otp(email: str, length: int = 4) -> int:
         settings.TEMPLATES["otp"],
         otp=otp,
         expiry=settings.verification_expire_delta,
-        support_email=settings.SMTP_SEND_FROM_MAIL)
+        support_email=settings.SMTP_SEND_FROM_MAIL,
+    )
     send_otp = await email_sender.send_email(
-        text=otp_text, to_email=email, subject="OTP for Verification"
+        text=otp_text, to_email=email, subject="OTP for Verification", text_type="html"
     )
     if settings.DEBUG_MODE:
         logger.info(f"OTP: {otp}")
