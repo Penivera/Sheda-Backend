@@ -109,7 +109,7 @@ class Settings(BaseSettings):
 
     # Directories
     TEMPLATES_DIR: str = os.path.join(os.getcwd(), "templates")
-    MEDIA_DIR: str = os.path.join(os.getcwd(), "media")
+    
 
     # Middleware
     ORIGINS: list[str] = Field(..., description="CORS allowed origins")
@@ -155,8 +155,7 @@ class Settings(BaseSettings):
 # Instantiate settings
 settings = Settings()  # type: ignore
 
-# Ensure media dir exists
-os.makedirs(settings.MEDIA_DIR, exist_ok=True)
+
 
 
 redis: aioredis.Redis = aioredis.from_url(

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from app.routers import auth, listing, user, chat, media, websocket
 from core.starter import lifespan
 from core.configs import settings
@@ -54,6 +55,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"] if settings.DEBUG_MODE else settings.ALLOW_HEADERS,
     )
     app.add_middleware(ErrorHandlerMiddleware)
+
+    # Mount static files directory
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     app.mount(settings.ADMIN_ROUTE, admin_app)
 
