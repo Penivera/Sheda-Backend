@@ -6,17 +6,9 @@ from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
 from core.middleware.error import ErrorHandlerMiddleware
-from starlette.status import (
-    HTTP_401_UNAUTHORIZED,
-    HTTP_403_FORBIDDEN,
-    HTTP_404_NOT_FOUND,
-    HTTP_500_INTERNAL_SERVER_ERROR,
-)
+from core.admin.admin import admin
 
-# Ensure FastAdmin model registrations are imported BEFORE creating the admin app.
-# `fastadmin.fastapi_app` is created at import-time and snapshots the registry.
-from core.admin import fastadmin as _fastadmin_models  # noqa: F401
-from fastadmin import fastapi_app as admin_app
+
 
 
 def create_app() -> FastAPI:
@@ -39,6 +31,10 @@ def create_app() -> FastAPI:
             ]
         ),
     )
+    
+    if not os.path.exists("static"):
+        os.makedirs("static")
+    app.mount("/static", StaticFiles(directory=os.path.join(settings.BASE_DIR, "static")), name="static")
 
     # NOTE - Include Routers
     app.include_router(auth.router, prefix=settings.API_V_STR)
@@ -46,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(listing.router, prefix=settings.API_V_STR)
     app.include_router(chat.router, prefix=settings.API_V_STR)
     app.include_router(media.router, prefix=settings.API_V_STR)
+    app.include_router(websocket.router,prefix=settings.API_V_STR)
 
     # # STUB - Set in full production
     app.add_middleware(
@@ -58,11 +55,9 @@ def create_app() -> FastAPI:
     app.add_middleware(ErrorHandlerMiddleware)
 
     # Mount static files directory (create if not exists for production)
-    if not os.path.exists("static"):
-        os.makedirs("static")
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    
 
-    app.mount(settings.ADMIN_ROUTE, admin_app)
+    admin.mount_to(app)
 
     return app
 

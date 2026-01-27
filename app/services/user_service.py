@@ -17,7 +17,7 @@ from app.utils.enums import AccountTypeEnum, UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
 from app.utils.utils import blacklist_token, token_exp_time
-from app.models.user import BaseUser
+from app.models.user import Agent, BaseUser, Client
 from dataclasses import dataclass
 from typing import List
 
@@ -370,10 +370,10 @@ async def get_websocket_user(
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return None
+        return
 
 
-ActiveVerifiedWSUser = Annotated[BaseUser | None, Depends(get_websocket_user)]
+ActiveVerifiedWSUser = Annotated[BaseUser | Client | Agent, Depends(get_websocket_user)]
 
 
 async def reset_password(user: UserInDB, db: DBSession, new_password: str):

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
         "before deletion if email verification is not completed"
     )
 
-    @computed_field
+    @property
     def BASE_DIR(self) -> str:
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
