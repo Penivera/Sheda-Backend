@@ -65,9 +65,12 @@ class BaseUserModelView(ModelView):
     ):
         # 1. Handle Password Hashing
         password = data.get("password")
-       
-            
-        if is_edit and settings.pwd_context.identify(password):
+        
+        if not password and not is_edit:
+            raise FormValidationError({"password": "Password is required."})
+        elif not password:
+            data.pop("password", None)
+        elif is_edit and settings.pwd_context.identify(password):
             data.pop("password", None)
         
         else:
