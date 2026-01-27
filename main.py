@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,  # type: ignore
         title="Sheda Solutions Backend",
         version="0.1.0",
-        docs_url="/",
+        docs_url="/sheda-docs",
         description="Backend for Sheda Solutions",
         debug=settings.DEBUG_MODE,
         servers=(

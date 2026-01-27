@@ -12,7 +12,6 @@ PhoneStr = Annotated[
         ],
         description="Phone number in international format",
         pattern=settings.PHONE_REGEX,  # type: ignore
-        min_length=10,
         max_length=15,
     ),
 ]

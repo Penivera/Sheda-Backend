@@ -1,6 +1,6 @@
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette_admin.contrib.sqla import Admin as StarletteAdmin,ModelView
+from starlette_admin.contrib.sqla import Admin as StarletteAdmin, ModelView
 from core.database import engine
 from core.configs import settings
 from app.models import *
@@ -10,21 +10,18 @@ from .auth import AdminAuthProvider
 admin = StarletteAdmin(
     engine,
     title="Sheda Solutions Admin",
-    base_url='/sheda-backend',
-    route_name='sheda-backend',
-    statics_dir='static',
-    favicon_url='/static/sheda-solutions.ico',
+    base_url="/sheda-backend",
+    route_name="sheda-backend",
+    statics_dir="static",
+    favicon_url="/static/sheda-solutions.ico",
     debug=settings.DEBUG_MODE,
-    logo_url='/static/sheda-solutions.png',
-    login_logo_url='/static/sheda-solutions.png',
+    logo_url="/static/sheda-solutions.png",
+    login_logo_url="/static/sheda-solutions.png",
     auth_provider=AdminAuthProvider(),
-    middlewares=[
-        Middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
-    ]
+    middlewares=[Middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)],
 )
 
 # Register models here
-
 admin.add_view(BaseUserModelView(BaseUser))
 admin.add_view(ClientModelView(Client))
 admin.add_view(AgentModelView(Agent))
@@ -37,4 +34,3 @@ admin.add_view(ContractModelView(Contract))
 admin.add_view(ModelView(AccountInfo))
 admin.add_view(ModelView(PaymentConfirmation))
 admin.add_view(ModelView(ChatMessage))
-     
