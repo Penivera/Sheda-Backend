@@ -11,6 +11,7 @@ from starlette_admin.exceptions import FormValidationError
 from starlette.templating import Jinja2Templates
 from starlette_admin.views import CustomView
 from starlette.responses import HTMLResponse
+from core.configs import settings
 
 
 
@@ -64,11 +65,15 @@ class BaseUserModelView(ModelView):
     ):
         # 1. Handle Password Hashing
         password = data.get("password")
-        if password:
-            data["password"] = hash_password(password)
-        elif is_edit:
-            # If editing and password is empty, remove key to keep existing password
+       
+            
+        if is_edit and settings.pwd_context.identify(password):
             data.pop("password", None)
+        
+        else:
+            # Hash only raw passwords
+            data["password"] = settings.pwd_context.hash(password)
+        
 
         # 2. Handle Avatar Upload to Cloudinary
         avatar = data.get("avatar_url")
