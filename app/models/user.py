@@ -17,7 +17,9 @@ from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime, timezone
 from app.utils.enums import AccountTypeEnum, KycStatusEnum, UserRole
 from typing import Optional, Any, Self
-from fastadmin import SqlAlchemyModelAdmin, register
+from starlette.requests import Request
+from html import escape
+
 
 
 def utc_now() -> datetime:
@@ -135,6 +137,21 @@ class BaseUser(Base):
         return (
             f"User(id={self.id}, email={self.email}, account_type={self.account_type})"
         )
+    
+    async def __admin_repr__(self, request: Request):
+        return f"{self.fullname or self.username or self.email},account type: {self.account_type}"
+    
+    async def __admin_select2_repr__(self, request: Request) -> str:
+        avatar = escape(self.avatar_url or "")
+        name = escape(self.fullname or self.username or self.email or "")
+
+        return (
+            f'<div>'
+            f'<img src="{avatar}">'
+            f'<span>{name}, </span>'
+            f'<span>Account Type: {escape(self.account_type or "")}'
+            f'</div>'
+        )
 
 
 # NOTE -  Buyer Model
@@ -225,67 +242,3 @@ class Admin(BaseUser):
     }
 
 
-@register(Admin, sqlalchemy_sessionmaker=AsyncSessionLocal)
-class UserAdmin(SqlAlchemyModelAdmin):
-    """Admin model for managing users."""
-
-    icon = "fa fa-user-shield"
-    list_display = (
-        "id",
-        "email",
-        "username",
-        "role",
-        "is_active",
-        "created_at",
-        "profile_pic",
-    )
-    search_fields = ("email", "username")
-    list_filter = ("id", "username", "is_superuser", "is_active", "role")
-
-    async def authenticate(
-        self, username: str, password: str
-    ) -> uuid.UUID | int | None:
-        from app.utils.utils import verify_password
-        from core.logger import logger
-
-        sessionmaker = self.get_sessionmaker()
-        async with sessionmaker() as session:
-            query = await session.execute(
-                select(Admin).where(
-                    Admin.username == username,
-                    Admin.is_superuser == True,  # noqa: E712
-                )
-            )
-            user = query.scalar_one_or_none()
-            if not user or not verify_password(password, user.password):
-                return None
-        logger.info(f"Admin {username} authenticated successfully.")
-        return user.id
-
-    async def change_password(self, id: uuid.UUID | int, password: str) -> None:
-        from app.utils.utils import hash_password
-
-        sessionmaker = self.get_sessionmaker()
-        async with sessionmaker() as session:
-            query = await session.execute(select(Admin).where(Admin.id == id))
-            user = query.scalar_one_or_none()
-            if user:
-                user.password = hash_password(password)
-                await session.commit()
-
-    async def orm_save_upload_field(self, obj: Any, field: str, base64: str) -> None:
-        sessionmaker = self.get_sessionmaker()
-        from app.utils.utils import upload_media_file_to_cloudinary
-
-        media_url = await upload_media_file_to_cloudinary(base64)
-        if not media_url:
-            return
-        setattr(obj, field, media_url)
-        async with sessionmaker() as session:
-            query = (
-                update(self.model_cls)
-                .where(BaseUser.id.in_([obj.id]))
-                .values(**{field: media_url})
-            )
-            await session.execute(query)
-            await session.commit()

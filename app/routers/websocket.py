@@ -76,8 +76,10 @@ from typing import Dict, Optional, Annotated
 from core.dependecies import DBSession
 from core.logger import logger
 from app.models.chat import ChatMessage
-from app.services.user_service import get_websocket_user
+from app.services.user_service import ActiveVerifiedWSUser
 from app.models.user import BaseUser
+from app.schemas.user_schema import UserShow
+from app.schemas.chat import ChatMessageSchema
 
 
 router = APIRouter(tags=["WebSocket"])
@@ -157,12 +159,11 @@ class WebSocketConnectionManager:
 ws_manager = WebSocketConnectionManager()
 
 
-@router.websocket("/ws/{user_id}")
+@router.websocket("/chat/{user_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
-    user_id: int,
-    db: DBSession,
-    token: Annotated[str | None, Query()] = None,
+    current_user:ActiveVerifiedWSUser,
+    db: DBSession
 ):
     """
     WebSocket endpoint for real-time messaging.
@@ -191,23 +192,12 @@ async def websocket_endpoint(
     
     See module docstring for detailed payload schemas.
     """
-    # Authenticate the user (handles accept/close internally)
-    current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
+   
     
-    if not current_user:
-        # Connection already closed in get_websocket_user
-        return
-
-    # Verify user_id matches the authenticated user
-    if current_user.id != user_id:
-        logger.warning(
-            f"WebSocket auth failed: user_id mismatch (token={current_user.id}, path={user_id})"
-        )
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+    current_user = UserShow.model_validate(current_user) # type: ignore
 
     # Track the session (connection already accepted by auth)
-    ws_manager.connect(websocket, user_id)
+    ws_manager.connect(websocket, current_user.id)
 
     # Build user info for messages
     sender_info = {
@@ -238,7 +228,7 @@ async def websocket_endpoint(
 
             # Store message in database
             chat_message = ChatMessage(
-                sender_id=user_id,
+                sender_id=current_user.id,
                 receiver_id=receiver_id,
                 message=message,
                 property_id=property_id,
@@ -275,5 +265,96 @@ async def websocket_endpoint(
             )
 
     except WebSocketDisconnect:
-        ws_manager.disconnect(user_id)
-        logger.info(f"WebSocket disconnected for user_id={user_id}")
+        ws_manager.disconnect(current_user.id)
+        logger.info(f"WebSocket disconnected for user_id={current_user.id}")
+
+
+@router.websocket("/chat/global-chat")
+async def websocket_chat(
+    websocket: WebSocket,
+    db: DBSession,
+    current_user:ActiveVerifiedWSUser
+):
+    """
+    WebSocket endpoint for chat messaging.
+
+    ## Authentication
+
+    JWT token is required and can be provided via:
+
+    1. **Query parameter**: `/chat/ws?token={jwt_token}`
+    2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
+
+    ## Incoming Message Format
+    ```json
+    {
+        "receiver_id": int,   // Required: Target user ID
+        "message": string     // Required: Message content
+    }
+    ```
+
+    ## Outgoing Message Format
+    ```json
+    {
+        "id": int,
+        "sender_info": {
+            "id": int,
+            "username": string,
+            "avatar_url": string
+        },
+        "receiver_id": int,
+        "message": string,
+        "created_at": string  // ISO 8601 timestamp
+    }
+    ```
+    """
+    
+
+    # Track the session (connection already accepted by auth)
+    ws_manager.connect(websocket, current_user.id) # type: ignore
+    current_user_show = UserShow.model_validate(current_user)
+
+    try:
+        while True:
+            try:
+                data = await websocket.receive_json()
+            except Exception:
+                await websocket.send_text("Invalid JSON received")
+                continue
+
+            sender_id = current_user_show.id
+            receiver_id = data.get("receiver_id")
+            message = data.get("message")
+
+            if not all([sender_id, receiver_id, message]):
+                await websocket.send_text("Missing fields in message")
+                continue
+
+            # Store in DB
+            chat_message = ChatMessageSchema(
+                sender_id=sender_id, receiver_id=receiver_id, message=message
+            )
+            db_message = ChatMessage(**chat_message.model_dump(exclude_unset=True))
+            db.add(db_message)
+            await db.commit()
+            await db.refresh(db_message)
+
+            sender_info = {
+                "id": sender_id,
+                "username": current_user_show.username,
+                "avatar_url": current_user_show.profile_pic,
+            }
+            payload = {
+                "id": db_message.id,
+                "sender_info": sender_info,
+                "receiver_id": db_message.receiver_id,
+                "message": db_message.message,
+                "created_at": (
+                    db_message.timestamp.isoformat() if db_message.timestamp else None
+                ),
+            }
+
+            await ws_manager.send_personal_message(payload, receiver_id)
+
+    except WebSocketDisconnect:
+        ws_manager.disconnect(current_user.id)

@@ -47,7 +47,7 @@ async def create_account(user_data: UserCreate, db: AsyncSession):
 
 async def get_user(
     identifier: str, db: AsyncSession, account_type=AccountTypeEnum.client
-) -> BaseUserSchema:
+) -> BaseUser | Client | Agent:
     """Fetch a user based on email, phone, or username and account type."""
 
     # Start with common options for BaseUser
