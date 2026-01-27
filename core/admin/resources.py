@@ -93,7 +93,7 @@ class BaseUserModelView(ModelView):
                 if content:
                     # Upload to Cloudinary
                     response = cloudinary.uploader.upload(
-                        content, folder="profile_pictures"
+                        content, folder="profile"
                     )
                     # Replace the tuple/file with the string URL
                     data["avatar_url"] = response.get("secure_url")
@@ -184,7 +184,7 @@ class PropertyImageModelView(ModelView):
 
         if isinstance(image_file, UploadFile):
             response = cloudinary.uploader.upload(
-                image_file.read(), folder="profile_pictures"
+                image_file.read(), folder="property"
             )
             url = response.get("secure_url")
             if url:
