@@ -148,8 +148,8 @@ class BaseUser(Base):
         return (
             f'<div>'
             f'<img src="{avatar}">'
-            f'<span>{name}, </span>'
-            f'<span>Account Type: {escape(self.account_type or "")}'
+            f'<span>{name}: </span>'
+            f'<span>{escape(self.account_type or "")}'
             f'</div>'
         )
 

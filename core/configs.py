@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     DEV_URL: str = Field(..., description="Development Server")
 
     # Regex
-    PHONE_REGEX: str = r"^\+\d{10,15}$"
+    PHONE_REGEX: str = r"^\+?\d{10,15}$"
 
     # Verification
     VERIFICATION_CODE_EXP_MIN: int = Field(

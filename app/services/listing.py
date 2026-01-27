@@ -76,9 +76,10 @@ async def update_listing(
     db: AsyncSession,
 ):
     property = next(
-        (listing for listing in current_user.listing if listing.id == property_id),  # type: ignore
+        (listing for listing in current_user.listings if listing.id == property_id),
         None,
     )
+
     if not property:
         raise HTTPException(status_code=404, detail="Property not found")
 
@@ -88,16 +89,16 @@ async def update_listing(
         setattr(property, key, value)
 
     if update_data.images is not None:
-        # NOTE  Convert dictionaries to PropertyImage instances
-        property_images = [
+        property.images = [
             PropertyImage(**image_data.model_dump())
             for image_data in update_data.images
         ]
-    property.images = property_images  # type: ignore
+
     db.add(property)
     await db.commit()
     await db.refresh(property)
     return property
+
 
 
 async def filtered_property(filter_query: FilterParams, db: AsyncSession):

@@ -182,8 +182,80 @@ This is the backend system for the real estate application. It handles user auth
 ## WebSocket API Reference
 
 The platform provides real-time messaging capabilities through WebSocket endpoints.
+ws://localhost:8000/api/v1/chat/global-chat?token=....
+ws://localhost:8000/api/v1/chat/2?token=...
 
-### Available WebSocket Endpoints
+## WebSocket Connection Flow
+
+### 1. Authentication
+- **JWT Required:**
+  - Pass via query param: `/ws/{user_id}?token={jwt_token}`
+  - Or via header: `Sec-WebSocket-Protocol: Bearer.{jwt_token}`
+- **Validation:** Only active, verified users can connect. Invalid/missing token results in connection error (WS_1008_POLICY_VIOLATION).
+
+### 2. Connection
+- Client connects to `/api/v1/chat/{user_id}` (user_id = sender's ID)
+- Server authenticates and tracks connection per user.
+
+### 3. Sending a Message
+- **Payload Example:**
+  ```json
+  {
+    "receiver_id": 3,
+    "message": "wagwan"
+  }
+  ```
+- **Required fields:**
+  - `receiver_id`: Target user ID
+  - `message`: Text content
+
+### 4. Server Response
+- **To Sender:**
+  ```json
+  {
+    "status": "sent",
+    "delivered": true, // true if recipient is online
+    "message_id": <int>
+  }
+  ```
+- **To Receiver:**
+  ```json
+  {
+    "id": <message_id>,
+    "sender_info": {
+      "id": <sender_id>,
+      "username": <sender_username>,
+      "avatar_url": <sender_avatar_url>
+    },
+    "receiver_id": <receiver_id>,
+    "message": "wagwan",
+    "created_at": "<ISO timestamp>"
+  }
+  ```
+
+### 5. Error Handling
+- **Error Response:**
+  ```json
+  {
+    "error": "Error description"
+  }
+  ```
+
+### 6. Disconnection
+- On disconnect, server cleans up session and removes user from active connections.
+
+### 7. Chat History
+- REST endpoint available: `GET /api/v1/chats/{user_id}`
+
+---
+
+## Recent Updates
+
+- **WebSocket authentication** now supports both query param and header.
+- **Message delivery status**: Sender receives `delivered: true` if recipient is online.
+- **Session cleanup**: Disconnection removes user from active connections.
+- **Payload validation**: Only valid, active users can send/receive messages.
+- **REST chat history** endpoint added for retrieving past messages.
 
 | Endpoint | Description |
 |----------|-------------|
