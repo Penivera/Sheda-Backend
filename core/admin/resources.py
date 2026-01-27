@@ -54,6 +54,10 @@ class BaseUserModelView(ModelView):
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
         await self._handle_password_and_avatar(data, is_edit=True)
+        if "avatar_url" in data:
+            obj.avatar_url = data["avatar_url"]
+        if "password" in data:
+            obj.password = data["password"]
 
     async def _handle_password_and_avatar(
         self, data: Dict[str, Any], is_edit: bool = False
