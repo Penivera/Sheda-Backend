@@ -16,6 +16,7 @@ def hash_password(password: Any) -> str:
     return settings.pwd_context.hash(password)
 
 
+
 def verify_password(password: Any, password_hash: str) -> bool:
     return settings.pwd_context.verify(password, password_hash)
 
