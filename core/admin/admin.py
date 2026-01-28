@@ -25,7 +25,7 @@ admin = StarletteAdmin(
 admin.add_view(BaseUserModelView(BaseUser))
 admin.add_view(ClientModelView(Client))
 admin.add_view(AgentModelView(Agent))
-admin.add_view(ModelView(Admin))
+admin.add_view(AdminModelView(Admin))
 admin.add_view(PropertyModelView(Property))
 admin.add_view(PropertyImageModelView(PropertyImage))
 admin.add_view(ModelView(Appointment))

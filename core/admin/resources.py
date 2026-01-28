@@ -45,57 +45,49 @@ class BaseUserModelView(ModelView):
     async def before_create(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
-        await self._handle_password_and_avatar(data)
-        if "avatar_url" in data:
-            obj.avatar_url = data["avatar_url"]
-        if "password" in data:
-            obj.password = data["password"]
+        await self._handle_password_and_avatar(data=data, is_edit=False, obj=obj)
+        
 
     async def before_edit(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
-        await self._handle_password_and_avatar(data, is_edit=True)
-        if "avatar_url" in data:
-            obj.avatar_url = data["avatar_url"]
-        if "password" in data:
-            obj.password = data["password"]
+        
+        await self._handle_password_and_avatar(data, is_edit=True,obj=obj)
+        
 
     async def _handle_password_and_avatar(
-        self, data: Dict[str, Any], is_edit: bool = False
+        self, data: Dict[str, Any], is_edit: bool = False,obj:Any=None
     ):
         # 1. Handle Password Hashing
         password = data.get("password")
         
-        if not password and not is_edit:
-            raise FormValidationError({"password": "Password is required."})
-        elif not password:
-            data.pop("password", None)
-        elif is_edit and settings.pwd_context.identify(password):
-            data.pop("password", None)
-        
+        if password and not settings.pwd_context.identify(password):
+           data["password"] = hash_password(password)
+           print("Password hashed")
         else:
-            # Hash only raw passwords
-            data["password"] = settings.pwd_context.hash(password)
+            if not is_edit:
+                raise FormValidationError({"password": "Password is required."})
+            else:
+                data.pop("password", None)
         
+        # 2. Avatar Upload
+        raw_avatar = data.get("avatar_url")
+        
+        avatar_file = None
+        should_clear = False
 
-        # 2. Handle Avatar Upload to Cloudinary
-        avatar = data.get("avatar_url")
+        if isinstance(raw_avatar, tuple):
+            avatar_file, should_clear = raw_avatar
+        elif isinstance(raw_avatar, UploadFile):
+            avatar_file = raw_avatar
 
-        # Starlette Admin stores ImageField as (UploadFile, bool)
-        if isinstance(avatar, tuple):
-            avatar_file = avatar[0]  # extract UploadFile
-        else:
-            avatar_file = avatar
-
-        if isinstance(avatar_file, UploadFile):
+        if should_clear:
+            data["avatar_url"] = None
+        elif avatar_file and getattr(avatar_file, "filename", None):
             try:
                 content = await avatar_file.read()
                 if content:
-                    # Upload to Cloudinary
-                    response = cloudinary.uploader.upload(
-                        content, folder="profile"
-                    )
-                    # Replace the tuple/file with the string URL
+                    response = cloudinary.uploader.upload(content, folder="profile")
                     data["avatar_url"] = response.get("secure_url")
                 else:
                     data.pop("avatar_url", None)
@@ -103,9 +95,15 @@ class BaseUserModelView(ModelView):
                 print(f"Error uploading avatar: {e}")
                 data.pop("avatar_url", None)
         else:
-            # If it's not a file (e.g. existing URL string or None)
-            if is_edit and not avatar_file:
-                data.pop("avatar_url", None)
+            data.pop("avatar_url", None)
+            
+       
+        if "avatar_url" in data:
+            obj.avatar_url = data["avatar_url"]
+        if "password" in data:
+            obj.password = data["password"]
+        if "username" in data:
+            obj.username = data["username"]
 
 
 class ClientModelView(BaseUserModelView):
@@ -118,6 +116,8 @@ class ClientModelView(BaseUserModelView):
 
     exclude_fields_from_list = ["properties", "password"]
     exclude_fields_from_detail = ["properties", "password"]
+    
+
 
 
 class AgentModelView(BaseUserModelView):
@@ -141,6 +141,14 @@ class AgentModelView(BaseUserModelView):
         "appointments",
         "password",
     ]
+
+class AdminModelView(BaseUserModelView):
+    """
+    Admin model for managing admin users.
+    Inherits from BaseUserModelView to get password hashing and image upload logic.
+    """
+
+    icon = "fa fa-user-shield"
 
 
 class PropertyModelView(ModelView):
@@ -184,7 +192,7 @@ class PropertyImageModelView(ModelView):
 
         if isinstance(image_file, UploadFile):
             response = cloudinary.uploader.upload(
-                image_file.read(), folder="property"
+                await image_file.read(), folder="property"
             )
             url = response.get("secure_url")
             if url:
