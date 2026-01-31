@@ -44,14 +44,14 @@ def create_app() -> FastAPI:
     app.include_router(media.router, prefix=settings.API_V_STR)
     app.include_router(websocket.router,prefix=settings.API_V_STR)
 
-    # # STUB - Set in full production
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"] if settings.DEBUG_MODE else settings.ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"] if settings.DEBUG_MODE else settings.METHODS,
-        allow_headers=["*"] if settings.DEBUG_MODE else settings.ALLOW_HEADERS,
-    )
+    # # # STUB - Set in full production
+    # app.add_middleware(
+    #     CORSMiddleware,
+    #     allow_origins=["*"] if settings.DEBUG_MODE else settings.ORIGINS,
+    #     allow_credentials=True,
+    #     allow_methods=["*"] if settings.DEBUG_MODE else settings.METHODS,
+    #     allow_headers=["*"] if settings.DEBUG_MODE else settings.ALLOW_HEADERS,
+    # )
     app.add_middleware(ErrorHandlerMiddleware)
 
     # Mount static files directory (create if not exists for production)
