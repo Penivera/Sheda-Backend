@@ -23,7 +23,7 @@ def verify_password(password: Any, password_hash: str) -> bool:
 
 async def verify_otp(otp: str, email: str):
     stored_otp = await redis.get(settings.OTP_PREFIX.format(email))
-    if stored_otp and stored_otp.decode() == otp:
+    if stored_otp and stored_otp== otp:
         logger.info("otp verified")
         await redis.delete(settings.OTP_PREFIX.format(email))
         logger.info(f"{email} OTP Data deleted from redis")
