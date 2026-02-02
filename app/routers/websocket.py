@@ -203,7 +203,7 @@ async def websocket_endpoint(
     sender_info = {
         "id": current_user.id,
         "username": current_user.username,
-        "avatar_url": current_user.profile_pic,
+        "avatar_url": current_user.avatar_url,
     }
 
     try:
@@ -342,7 +342,7 @@ async def websocket_chat(
             sender_info = {
                 "id": sender_id,
                 "username": current_user_show.username,
-                "avatar_url": current_user_show.profile_pic,
+                "avatar_url": current_user_show.avatar_url,
             }
             payload = {
                 "id": db_message.id,

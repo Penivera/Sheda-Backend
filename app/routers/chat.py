@@ -77,7 +77,7 @@ async def get_user_info(user_id: int, db: DBSession) -> Optional[UserInfoSchema]
         return UserInfoSchema(
             id=user.id,
             username=user.username,
-            profile_pic=user.profile_pic,
+            avatar_url=user.avatar_url,
             fullname=user.fullname,
         )
     return None
@@ -213,8 +213,8 @@ async def get_conversations(
         conversation = ConversationSchema(
             other_user_id=other_user_id,
             other_user_name=other_user_info.username if other_user_info else None,
-            other_user_profile_pic=(
-                other_user_info.profile_pic if other_user_info else None
+            other_user_avatar_url=(
+                other_user_info.avatar_url if other_user_info else None
             ),
             other_user_fullname=other_user_info.fullname if other_user_info else None,
             last_message=last_message.message if last_message else None,
@@ -286,7 +286,7 @@ async def get_message_history(
     current_user_info = UserInfoSchema(
         id=current_user.id,
         username=current_user.username,
-        profile_pic=current_user.profile_pic,
+        avatar_url=current_user.avatar_url,
         fullname=current_user.fullname,
     )
 
@@ -374,7 +374,7 @@ async def send_message(
     sender_info = UserInfoSchema(
         id=current_user.id,
         username=current_user.username,
-        profile_pic=current_user.profile_pic,
+        avatar_url=current_user.avatar_url,
         fullname=current_user.fullname,
     )
 
@@ -384,7 +384,7 @@ async def send_message(
         "sender_info": {
             "id": sender_id,
             "username": current_user.username,
-            "avatar_url": current_user.profile_pic,
+            "avatar_url": current_user.avatar_url,
         },
         "receiver_id": new_message.receiver_id,
         "message": new_message.message,
