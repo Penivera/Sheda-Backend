@@ -45,6 +45,10 @@ class Property(Base):
         String,
         nullable=True,
     )
+    blockchain_property_id: Mapped[str] = mapped_column(
+        String,
+        nullable=True,
+    )
     price: Mapped[float] = mapped_column(
         Float,
         nullable=False,
