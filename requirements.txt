@@ -1,4 +1,5 @@
 aiofiles==24.1.0
+alembic==1.13.1
 aioredis==2.0.1
 aiosqlite==0.21.0
 annotated-types==0.7.0
