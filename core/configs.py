@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str = Field(..., description="Cloudinary Api Key")
     CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
+    #PINATA Creddentilals
+    PINATA_SECRET_API_KEY:str = Field(deafult="Nothing for now", description="Pinata secret api key")
+    PINATA_API_KEY:str = Field(deafult="Nothing for now", description="Pinata api key")
+    PINATA_URL:str= Field(deafult="https://api.pinata.cloud/pinning/pinFileToIPFS", description="Pinata url")
+
     # SECTION FastAdmin / Admin Seeding
     
     ADMIN_ROUTE: str = Field(

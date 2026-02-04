@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.routers import auth, listing, user, chat, media, websocket
+from app.routers import auth, listing, user, chat, media, websocket, rating
 from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix=settings.API_V_STR)
     app.include_router(media.router, prefix=settings.API_V_STR)
     app.include_router(websocket.router,prefix=settings.API_V_STR)
+    app.include_router(rating.router, prefix=settings.API_V_STR)
 
     # # # STUB - Set in full production
     # app.add_middleware(
