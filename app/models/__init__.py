@@ -11,6 +11,7 @@ from .property import (
     PaymentConfirmation,
 )
 from .chat import ChatMessage
+from .rating import Rating
 
 __all__ = [
     "BaseUser",
@@ -24,5 +25,8 @@ __all__ = [
     "Contract",
     "AccountInfo",
     "PaymentConfirmation",
+    "AccountInfo",
+    "PaymentConfirmation",
     "ChatMessage",
+    "Rating",
 ]
