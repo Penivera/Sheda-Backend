@@ -34,6 +34,7 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
 
 - **Backend:** FastAPI, Pydantic, SQLAlchemy
 - **Database:** PostgreSQL
+- **Database Migrations:** Alembic
 - **Caching & Session Management:** Redis
 - **Authentication:** JWT
 
@@ -70,9 +71,15 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
 4. **Set up environment variables**  
    Create a `.env` file and configure your database, JWT secret, and Redis settings.
 
-5. **View live server @ <https://sheda-backend-production.up.railway.app/>**
+6. **Run database migrations**
 
-6. **Start the server**
+   ```sh
+   alembic upgrade head
+   ```
+
+7. **View live server @ <https://sheda-backend-production.up.railway.app/>**
+
+8. **Start the server**
 
    ```sh
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -521,6 +528,56 @@ When a user disconnects, their WebSocket session is automatically removed from a
 - Hosted on **Railway**.
 - Uses PostgreSQL for the database.
 - APScheduler runs within the FastAPI application.
+
+## Database Migrations
+
+This project uses **Alembic** for database schema migrations. Alembic enables you to track changes to your database schema over time and apply those changes incrementally.
+
+### Creating a New Migration
+
+After making changes to your SQLAlchemy models, generate a new migration:
+
+```sh
+alembic revision --autogenerate -m "description_of_changes"
+```
+
+### Applying Migrations
+
+Apply all pending migrations to your database:
+
+```sh
+alembic upgrade head
+```
+
+### Rolling Back Migrations
+
+Roll back the last migration:
+
+```sh
+alembic downgrade -1
+```
+
+Roll back all migrations:
+
+```sh
+alembic downgrade base
+```
+
+### Checking Current Migration State
+
+View the current migration revision:
+
+```sh
+alembic current
+```
+
+View migration history:
+
+```sh
+alembic history
+```
+
+> **Note:** Make sure your `.env` file contains the correct `DB_URL` before running any migration commands.
 
 ## Next Steps
 
