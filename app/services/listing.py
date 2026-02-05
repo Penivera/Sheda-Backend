@@ -75,10 +75,11 @@ async def update_listing(
     update_data: PropertyUpdate,
     db: AsyncSession,
 ):
-    property = next(
-        (listing for listing in current_user.listings if listing.id == property_id),
-        None,
+    query = select(Property).where(
+        Property.id == property_id, Property.agent_id == current_user.id
     )
+    result = await db.execute(query)
+    property = result.scalar_one_or_none()
 
     if not property:
         raise HTTPException(status_code=404, detail="Property not found")
