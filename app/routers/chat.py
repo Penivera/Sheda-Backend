@@ -1,4 +1,11 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query, HTTPException
+from fastapi import (
+    APIRouter,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+    Query,
+    HTTPException,
+)
 from app.models.chat import ChatMessage
 from app.models.user import BaseUser
 from app.models.property import Property, PropertyImage
@@ -16,10 +23,10 @@ from app.schemas.chat import (
     ConversationPaginationParams,
     MessageHistoryParams,
 )
-from app.schemas.user_schema import UserShow
-from typing import Dict, List, Optional, Annotated
+
+from typing import Dict, List, Optional, Annotated, Any
 from core.dependecies import DBSession
-from app.services.user_service import ActiveUser, get_websocket_user
+from app.services.user_service import ActiveUser
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
 from sqlalchemy import or_, and_, func, desc
@@ -34,141 +41,8 @@ router = APIRouter(
 )
 
 
-class ConnectionManager:
-    """Manages WebSocket connections for the chat router."""
-    
-    def __init__(self):
-        self.active_connections: list[Dict[int, WebSocket]] = []
-
-    def connect(self, websocket: WebSocket, user_id: int):
-        """
-        Track a WebSocket connection.
-        
-        Note: The WebSocket should already be accepted before calling this method.
-        
-        Args:
-            websocket: The WebSocket connection (already accepted)
-            user_id: The authenticated user's ID
-        """
-        self.active_connections.append({"user_id": user_id, "websocket": websocket}) # type: ignore
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections = [
-            conn for conn in self.active_connections if conn["websocket"] != websocket # type: ignore
-        ]
-
-    async def send_personal_message(self, message: dict, user_id: int):
-        """Send a message to a specific user by ID"""
-        for conn in self.active_connections:
-            if conn["user_id"] == user_id:
-                await conn["websocket"].send_json(message)
-                break  # stop after sending to first matching user
-
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections:
-            await connection["websocket"].send_text(message) # type: ignore
-    
 
 
-manager = ConnectionManager()
-
-
-@router.websocket("/ws")
-async def websocket_chat(
-    websocket: WebSocket,
-    db: DBSession,
-    token: Annotated[str | None, Query()] = None,
-):
-    """
-    WebSocket endpoint for chat messaging.
-    
-    ## Authentication
-    
-    JWT token is required and can be provided via:
-    
-    1. **Query parameter**: `/chat/ws?token={jwt_token}`
-    2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
-    
-    ## Incoming Message Format
-    ```json
-    {
-        "receiver_id": int,   // Required: Target user ID
-        "message": string     // Required: Message content
-    }
-    ```
-    
-    ## Outgoing Message Format
-    ```json
-    {
-        "id": int,
-        "sender_info": {
-            "id": int,
-            "username": string,
-            "avatar_url": string
-        },
-        "receiver_id": int,
-        "message": string,
-        "created_at": string  // ISO 8601 timestamp
-    }
-    ```
-    """
-    # Authenticate the user (handles accept/close internally)
-    current_user: BaseUser | None = await get_websocket_user(websocket, db, token)
-    
-    if not current_user:
-        # Connection already closed in get_websocket_user
-        return
-
-    # Track the session (connection already accepted by auth)
-    manager.connect(websocket, current_user.id)
-    current_user_show = UserShow.model_validate(current_user)
-
-    try:
-        while True:
-            try:
-                data = await websocket.receive_json()
-            except Exception:
-                await websocket.send_text("Invalid JSON received")
-                continue
-
-            sender_id = current_user_show.id
-            receiver_id = data.get("receiver_id")
-            message = data.get("message")
-
-            if not all([sender_id, receiver_id, message]):
-                await websocket.send_text("Missing fields in message")
-                continue
-
-            # Store in DB
-            chat_message = ChatMessageSchema(
-                sender_id=sender_id, receiver_id=receiver_id, message=message
-            )
-            db_message = ChatMessage(**chat_message.model_dump(exclude_unset=True))
-            db.add(db_message)
-            await db.commit()
-            await db.refresh(db_message)
-            
-        
-            
-            sender_info = {
-                "id": sender_id,
-                "username": current_user_show.username,
-                "avatar_url": current_user_show.profile_pic,
-                }
-            payload = {
-                "id": db_message.id,
-                "sender_info": sender_info,
-                "receiver_id": db_message.receiver_id,
-                "message": db_message.message,
-                "created_at": db_message.timestamp.isoformat() if db_message.timestamp else None,
-                }
-
-
-            await manager.send_personal_message(payload, receiver_id)
-
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
 
 
 @router.get(
@@ -181,7 +55,13 @@ async def chat_history(
     db: DBSession,
     pagination: Annotated[ChatPaginationParams, Query()],
 ):
-    query = select(ChatMessage).where(ChatMessage.sender_id == current_user.id).order_by(ChatMessage.timestamp.desc()).offset(pagination.offset).limit(pagination.limit)
+    query = (
+        select(ChatMessage)
+        .where(ChatMessage.sender_id == current_user.id)
+        .order_by(ChatMessage.timestamp.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
     result: Result = await db.execute(query)
     chats = result.scalars().all()
     return chats
@@ -197,19 +77,25 @@ async def get_user_info(user_id: int, db: DBSession) -> Optional[UserInfoSchema]
         return UserInfoSchema(
             id=user.id,
             username=user.username,
-            profile_pic=user.profile_pic,
+            avatar_url=user.avatar_url,
             fullname=user.fullname,
         )
     return None
 
 
-async def get_property_info(property_id: int, db: DBSession) -> Optional[PropertyInfoSchema]:
+async def get_property_info(
+    property_id: int, db: DBSession
+) -> Optional[PropertyInfoSchema]:
     """Fetch minimal property info for chat context"""
     query = select(Property).where(Property.id == property_id)
     result = await db.execute(query)
     property_obj = result.scalar_one_or_none()
     if property_obj:
-        images = [img.image_url for img in property_obj.images] if property_obj.images else []
+        images = (
+            [img.image_url for img in property_obj.images]
+            if property_obj.images
+            else []
+        )
         return PropertyInfoSchema(
             id=property_obj.id,
             title=property_obj.title,
@@ -305,7 +191,8 @@ async def get_conversations(
             and_(
                 ChatMessage.sender_id == other_user_id,
                 ChatMessage.receiver_id == user_id,
-                ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+                ChatMessage.is_read
+                == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
             )
         )
         unread_result = await db.execute(unread_query)
@@ -326,7 +213,9 @@ async def get_conversations(
         conversation = ConversationSchema(
             other_user_id=other_user_id,
             other_user_name=other_user_info.username if other_user_info else None,
-            other_user_profile_pic=other_user_info.profile_pic if other_user_info else None,
+            other_user_avatar_url=(
+                other_user_info.avatar_url if other_user_info else None
+            ),
             other_user_fullname=other_user_info.fullname if other_user_info else None,
             last_message=last_message.message if last_message else None,
             last_message_timestamp=last_message.timestamp if last_message else None,
@@ -397,15 +286,19 @@ async def get_message_history(
     current_user_info = UserInfoSchema(
         id=current_user.id,
         username=current_user.username,
-        profile_pic=current_user.profile_pic,
+        avatar_url=current_user.avatar_url,
         fullname=current_user.fullname,
     )
 
     # Build detailed response
     detailed_messages = []
     for msg in messages:
-        sender_info = current_user_info if msg.sender_id == current_user_id else other_user
-        receiver_info = other_user if msg.sender_id == current_user_id else current_user_info
+        sender_info = (
+            current_user_info if msg.sender_id == current_user_id else other_user
+        )
+        receiver_info = (
+            other_user if msg.sender_id == current_user_id else current_user_info
+        )
 
         property_info = None
         if msg.property_id:
@@ -481,7 +374,7 @@ async def send_message(
     sender_info = UserInfoSchema(
         id=current_user.id,
         username=current_user.username,
-        profile_pic=current_user.profile_pic,
+        avatar_url=current_user.avatar_url,
         fullname=current_user.fullname,
     )
 
@@ -491,13 +384,17 @@ async def send_message(
         "sender_info": {
             "id": sender_id,
             "username": current_user.username,
-            "avatar_url": current_user.profile_pic,
+            "avatar_url": current_user.avatar_url,
         },
         "receiver_id": new_message.receiver_id,
         "message": new_message.message,
-        "created_at": new_message.timestamp.isoformat() if new_message.timestamp else None,
+        "created_at": (
+            new_message.timestamp.isoformat() if new_message.timestamp else None
+        ),
         "property_id": new_message.property_id,
     }
+    from .websocket import WebSocketConnectionManager
+    manager = WebSocketConnectionManager()
     await manager.send_personal_message(payload, receiver_id)
 
     return SendMessageResponse(
@@ -542,7 +439,8 @@ async def mark_messages_read(
         and_(
             ChatMessage.sender_id == sender_id,
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     result = await db.execute(query)
@@ -581,7 +479,8 @@ async def get_unread_count(
     total_unread_query = select(func.count(ChatMessage.id)).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     total_unread_result = await db.execute(total_unread_query)
@@ -593,7 +492,8 @@ async def get_unread_count(
     ).where(
         and_(
             ChatMessage.receiver_id == current_user_id,
-            ChatMessage.is_read == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
+            ChatMessage.is_read
+            == False,  # noqa: E712 - SQLAlchemy requires == for SQL generation
         )
     )
     conversations_result = await db.execute(conversations_query)

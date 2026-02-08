@@ -25,7 +25,7 @@ timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S"
 
 
 async def update_pfp(user: BaseUserSchema, db: AsyncSession, file_path: str):
-    user.profile_pic = file_path
+    user.avatar_url = file_path
     db.add(user)
     await db.commit()
     await db.refresh(user)

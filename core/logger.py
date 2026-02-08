@@ -21,7 +21,7 @@ class ColoredFormatter(logging.Formatter):
 logger = logging.getLogger("colored_logger")
 handler = logging.StreamHandler()
 handler.setFormatter(
-    ColoredFormatter("%(levelname)s:     %(funcName)s:Line-%(lineno)d: %(message)s")
+    ColoredFormatter("%(levelname)s:    %(funcName)s:Line-%(lineno)d: %(message)s")
 )
 logger.addHandler(handler)
 

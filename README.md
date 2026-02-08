@@ -70,9 +70,10 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
 4. **Set up environment variables**  
    Create a `.env` file and configure your database, JWT secret, and Redis settings.
 
-5. **View live server @ https://sheda-backend-production.up.railway.app/**
+5. **View live server @ <https://sheda-backend-production.up.railway.app/>**
 
 6. **Start the server**
+
    ```sh
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
@@ -80,32 +81,37 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
 # Real Estate Backend API
 
 ## Overview
+
 This is the backend system for the real estate application. It handles user authentication, property listings, appointments, contract creation, chat system, and automated contract expiration management.
 
 ## Tech Stack
+
 - **FastAPI** (Backend framework)
 - **SQLAlchemy** (ORM for database interactions)
 - **PostgreSQL** (Database)
 - **APScheduler** (Scheduled tasks)
 - **Railway** (Deployment platform)
 
-
 ## System Flow
 
 ### 1️⃣ **User Roles**
+
 - **Client:** Can browse properties, book appointments, make payments, and chat.
 - **Agent:** Lists properties, manages appointments, confirms payments, and engages with clients.
 
 ### 2️⃣ **Property Listings**
+
 - Properties belong to agents.
 - Can be available for **rent** or **sale**.
 - Includes attributes like price, location, type, status, etc.
 
 ### 3️⃣ **Appointments**
+
 - Clients book an appointment with an agent for a property.
 - The agent confirms or rejects the appointment.
 
 ### 4️⃣ **Payment & Contract Flow**
+
 - After an appointment, the client can **Make Payment** or **Cancel**.
 - If **Make Payment**, account details are shown.
 - Client confirms payment by clicking **"I have made payment"**.
@@ -113,6 +119,7 @@ This is the backend system for the real estate application. It handles user auth
 - If accepted, a contract is created for **rent** or **sale**.
 
 ### 5️⃣ **Automated Contract Expiration**
+
 - APScheduler runs a background job **every 24 hours**.
 - It checks contracts that have expired.
 - It deactivates the contract and marks the property as available.
@@ -120,10 +127,12 @@ This is the backend system for the real estate application. It handles user auth
 ## API Endpoints
 
 ### **Authentication**
+
 - `POST /auth/register` – Register a new user.
 - `POST /auth/login` – Login and get an access token.
 
 ### **Properties**
+
 - `GET /properties` – List all properties.
 - `GET /properties/{id}` – Get property details.
 - `POST /properties` – Create a property (**Agent only**).
@@ -131,37 +140,44 @@ This is the backend system for the real estate application. It handles user auth
 - `DELETE /properties/{id}` – Delete a property (**Agent only**).
 
 ### **Appointments**
+
 - `POST /appointments` – Client books an appointment.
 - `PATCH /appointments/{id}/confirm` – Agent confirms appointment.
 - `DELETE /appointments/{id}` – Cancel appointment.
 
 ### **Payments & Contracts**
+
 - `POST /contracts/{property_id}` – Create a contract after payment.
 - `PATCH /contracts/{id}/confirm-payment` – Agent confirms payment.
 - `PATCH /contracts/{id}/expire` – Mark contract as expired (automated).
 
 ### **Chat System**
+
 - `POST /chats` – Send a message.
 - `GET /chats/{user_id}` – Retrieve chat history.
 
 ## Database Models
 
 ### **User (BaseUser abstract model)**
+
 - `id` – Primary key.
 - `role` – Can be `client` or `agent`.
 
 ### **Property**
+
 - `id` – Primary key.
 - `agent_id` – Foreign key to `User`.
 - `status` – `available`, `sold`, `rented`.
 
 ### **Appointment**
+
 - `id` – Primary key.
 - `client_id` – Foreign key to `User`.
 - `agent_id` – Foreign key to `User`.
 - `property_id` – Foreign key to `Property`.
 
 ### **Contract**
+
 - `id` – Primary key.
 - `property_id` – Foreign key to `Property`.
 - `client_id` – Foreign key to `User`.
@@ -169,6 +185,7 @@ This is the backend system for the real estate application. It handles user auth
 - `is_active` – Becomes `False` when expired.
 
 ### **Chat**
+
 - `id` – Primary key.
 - `sender_id` – Foreign key to `User`.
 - `receiver_id` – Foreign key to `User`.
@@ -182,8 +199,93 @@ This is the backend system for the real estate application. It handles user auth
 ## WebSocket API Reference
 
 The platform provides real-time messaging capabilities through WebSocket endpoints.
+ws://localhost:8000/api/v1/chat/global-chat?token=....
+ws://localhost:8000/api/v1/chat/2?token=...
 
-### Available WebSocket Endpoints
+## WebSocket Connection Flow
+
+### 1. Authentication
+
+- **JWT Required:**
+  - Pass via query param: `/ws/{user_id}?token={jwt_token}`
+  - Or via header: `Sec-WebSocket-Protocol: Bearer.{jwt_token}`
+- **Validation:** Only active, verified users can connect. Invalid/missing token results in connection error (WS_1008_POLICY_VIOLATION).
+
+### 2. Connection
+
+- Client connects to `/api/v1/chat/{user_id}` (user_id = sender's ID)
+- Server authenticates and tracks connection per user.
+
+### 3. Sending a Message
+
+- **Payload Example:**
+
+  ```json
+  {
+    "receiver_id": 3,
+    "message": "wagwan"
+  }
+  ```
+
+- **Required fields:**
+  - `receiver_id`: Target user ID
+  - `message`: Text content
+
+### 4. Server Response
+
+- **To Sender:**
+
+  ```json
+  {
+    "status": "sent",
+    "delivered": true, // true if recipient is online
+    "message_id": <int>
+  }
+  ```
+
+- **To Receiver:**
+
+  ```json
+  {
+    "id": <message_id>,
+    "sender_info": {
+      "id": <sender_id>,
+      "username": <sender_username>,
+      "avatar_url": <sender_avatar_url>
+    },
+    "receiver_id": <receiver_id>,
+    "message": "wagwan",
+    "created_at": "<ISO timestamp>"
+  }
+  ```
+
+### 5. Error Handling
+
+- **Error Response:**
+
+  ```json
+  {
+    "error": "Error description"
+  }
+  ```
+
+### 6. Disconnection
+
+- On disconnect, server cleans up session and removes user from active connections.
+
+### 7. Chat History
+
+- REST endpoint available: `GET /api/v1/chats/{user_id}`
+
+---
+
+## Recent Updates
+
+- **WebSocket authentication** now supports both query param and header.
+- **Message delivery status**: Sender receives `delivered: true` if recipient is online.
+- **Session cleanup**: Disconnection removes user from active connections.
+- **Payload validation**: Only valid, active users can send/receive messages.
+- **REST chat history** endpoint added for retrieving past messages.
 
 | Endpoint | Description |
 |----------|-------------|
@@ -206,6 +308,7 @@ ws://<host>/api/v1/chat/ws?token={jwt_token}
 ```
 
 **Example (JavaScript):**
+
 ```javascript
 const ws = new WebSocket('ws://localhost:8000/ws/123?token=eyJhbGciOiJIUzI1NiIs...');
 ```
@@ -219,11 +322,13 @@ Sec-WebSocket-Protocol: Bearer.{jwt_token}
 ```
 
 **Example (JavaScript):**
+
 ```javascript
 const ws = new WebSocket('ws://localhost:8000/ws/123', ['Bearer.eyJhbGciOiJIUzI1NiIs...']);
 ```
 
 **Example (Python with websockets):**
+
 ```python
 import websockets
 
@@ -335,6 +440,7 @@ When validation fails:
 This endpoint requires the `user_id` in the path to match the authenticated user's ID from the JWT token. This provides an additional layer of verification.
 
 **Connection Flow:**
+
 1. Client connects with token (query param or protocol header)
 2. Server validates JWT token
 3. Server verifies `user_id` matches the token's subject
@@ -350,6 +456,7 @@ This endpoint requires the `user_id` in the path to match the authenticated user
 This endpoint authenticates solely via the JWT token without requiring the user ID in the path.
 
 **Connection Flow:**
+
 1. Client connects with token (query param or protocol header)
 2. Server validates JWT token
 3. Server accepts connection (echoing subprotocol if used)
@@ -389,13 +496,13 @@ GET /api/v1/chat/history/{user_id}?offset=0&limit=50
         "sender_info": {
             "id": 456,
             "username": "sender_name",
-            "profile_pic": "https://example.com/avatar.jpg",
+            "avatar_url": "https://example.com/avatar.jpg",
             "fullname": "John Doe"
         },
         "receiver_info": {
             "id": 123,
             "username": "receiver_name",
-            "profile_pic": null,
+            "avatar_url": null,
             "fullname": "Jane Doe"
         },
         "property_info": null
@@ -416,10 +523,9 @@ When a user disconnects, their WebSocket session is automatically removed from a
 - APScheduler runs within the FastAPI application.
 
 ## Next Steps
+
 - Improve payment verification with webhook integration.
 - Enhance notification system for user interactions.
-
-
 
 ---
 
@@ -429,8 +535,8 @@ When a user disconnects, their WebSocket session is automatically removed from a
 
 The system supports a distinct `admin` role. This role provides elevated privileges across the platform and is granted through the `role` field on the user object.
 
-* `role` values: `"user"` (default), `"admin"`
-* Admins may have associated accounts (e.g., buyer/seller), but their elevated privileges are determined by the `role` field, not the account type.
+- `role` values: `"user"` (default), `"admin"`
+- Admins may have associated accounts (e.g., buyer/seller), but their elevated privileges are determined by the `role` field, not the account type.
 
 ### 🔧 Promoting a User to Admin
 
@@ -444,8 +550,8 @@ UPDATE users SET role = 'admin' WHERE id = '<user_id>';
 
 After this update:
 
-* Tokens issued to that user will include the `"admin"` scope.
-* The user will be able to access admin-only routes if they are active.
+- Tokens issued to that user will include the `"admin"` scope.
+- The user will be able to access admin-only routes if they are active.
 
 ---
 
@@ -468,11 +574,11 @@ To gain access to admin-only features, the token must include the `"admin"` scop
 
 All protected routes check scopes and roles like so:
 
-* If the route requires `"admin"` scope:
+- If the route requires `"admin"` scope:
 
-  * The token must include `"admin"`
-  * The user’s `role` must be `admin`
-  * The user must be active
+  - The token must include `"admin"`
+  - The user’s `role` must be `admin`
+  - The user must be active
 
 Failing any of these conditions will result in a `403 Forbidden`.
 
@@ -490,17 +596,17 @@ Upload a media file of the specified type. Only admin users can access this endp
 
 **Path Parameters:**
 
-* `type`: string — the category/type of the file to be uploaded.
+- `type`: string — the category/type of the file to be uploaded.
 
 **Authentication Required:**
 
-* Bearer token with `"admin"` scope
+- Bearer token with `"admin"` scope
 
 **Responses:**
 
-* `201 Created`: File uploaded successfully
-* `401 Unauthorized`: Missing or invalid token
-* `403 Forbidden`: User is not an active admin
+- `201 Created`: File uploaded successfully
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: User is not an active admin
 
 ---
 
@@ -517,8 +623,5 @@ The following scopes define what a user can do within the system. Scopes are emb
 
 > **Note:**
 >
-> * User `role` values: `user`, `admin`, `moderator`
-> * User `user_type` values: `client`, `agent`
-
-
-
+> - User `role` values: `user`, `admin`, `moderator`
+> - User `user_type` values: `client`, `agent`

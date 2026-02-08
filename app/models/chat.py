@@ -1,7 +1,12 @@
 from core.database import Base
 from sqlalchemy import ForeignKey, Integer, Text, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 class ChatMessage(Base):
@@ -19,7 +24,9 @@ class ChatMessage(Base):
     )  # Optional, for property discussions
     message: Mapped[str] = mapped_column(Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
     sender = relationship("BaseUser", foreign_keys=[sender_id])
     receiver = relationship("BaseUser", foreign_keys=[receiver_id])

@@ -1,12 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import BaseUser, Client, Agent
-from fastapi import status, HTTPException
+from fastapi import status, HTTPException, BackgroundTasks
 from sqlalchemy.future import select
 from email_validator import validate_email, EmailNotValidError
 import re
 from app.schemas.auth_schema import LoginData, Token, TokenData, SignUpShow
 from app.schemas.user_schema import UserInDB, UserCreate, UserShow
 from app.utils.utils import verify_password
+from app.utils.email import create_send_otp
 from datetime import datetime, timezone, timedelta
 from core.configs import settings
 from core.dependecies import DBSession
@@ -46,7 +47,7 @@ async def create_account(user_data: UserCreate, db: AsyncSession):
 
 async def get_user(
     identifier: str, db: AsyncSession, account_type=AccountTypeEnum.client
-) -> BaseUserSchema:
+) -> BaseUser | Client | Agent:
     """Fetch a user based on email, phone, or username and account type."""
 
     # Start with common options for BaseUser
@@ -80,7 +81,7 @@ async def get_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    user.last_seen = datetime.now()
+    user.last_seen = datetime.now(timezone.utc)
     await db.refresh(user)
     return user
 
@@ -111,8 +112,11 @@ async def create_access_token(data: TokenData, expire_time=None):
     return encoded_jwt
 
 
-async def process_signup(user_data: UserCreate, db: AsyncSession):
+async def process_signup(
+    user_data: UserCreate, db: AsyncSession, background_tasks: BackgroundTasks
+):
     new_user = await create_account(user_data, db)
+    background_tasks.add_task(create_send_otp, new_user.email)
     token_data = TokenData(sub=new_user.id, scopes=[new_user.account_type.value])  # type: ignore
     access_token = await create_access_token(data=token_data)
     return SignUpShow(

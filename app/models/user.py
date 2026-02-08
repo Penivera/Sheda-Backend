@@ -1,5 +1,5 @@
 from sqlalchemy.orm.relationships import _RelationshipDeclared
-from core.database import Base
+from core.database import Base, AsyncSessionLocal
 from sqlalchemy import (
     String,
     Boolean,
@@ -9,11 +9,22 @@ from sqlalchemy import (
     ForeignKey,
     CheckConstraint,
     UniqueConstraint,
+    select,
+    update,
 )
+import uuid
 from sqlalchemy.orm import mapped_column, Mapped, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.utils.enums import AccountTypeEnum, KycStatusEnum, UserRole
-from typing import Optional,Any
+from typing import Optional, Any, Self
+from starlette.requests import Request
+from html import escape
+
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 # NOTE - Base User Model
@@ -25,7 +36,7 @@ class BaseUser(Base):
         nullable=True,
         index=True,
     )
-    profile_pic: Mapped[str] = mapped_column(
+    avatar_url: Mapped[str] = mapped_column(
         String(255),
         nullable=True,
     )
@@ -54,13 +65,13 @@ class BaseUser(Base):
         default=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
     )
     verified: Mapped[bool] = mapped_column(
         Boolean,
@@ -72,7 +83,7 @@ class BaseUser(Base):
         nullable=True,
     )
     last_seen: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
     fullname: Mapped[str] = mapped_column(
         String(50),
@@ -122,6 +133,26 @@ class BaseUser(Base):
         ),
     )
 
+    def __str__(self) -> str:
+        return (
+            f"User(id={self.id}, email={self.email}, account_type={self.account_type})"
+        )
+    
+    async def __admin_repr__(self, request: Request):
+        return f"{self.fullname or self.username or self.email},account type: {self.account_type}"
+    
+    async def __admin_select2_repr__(self, request: Request) -> str:
+        avatar = escape(self.avatar_url or "")
+        name = escape(self.fullname or self.username or self.email or "")
+
+        return (
+            f'<div>'
+            f'<img src="{avatar}">'
+            f'<span>{name}: </span>'
+            f'<span>{escape(self.account_type or "")}'
+            f'</div>'
+        )
+
 
 # NOTE -  Buyer Model
 class Client(BaseUser):
@@ -130,7 +161,9 @@ class Client(BaseUser):
         ForeignKey("user.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    properties: _RelationshipDeclared[Any] = relationship("Property", back_populates="client", lazy="selectin")
+    properties: _RelationshipDeclared[Any] = relationship(
+        "Property", back_populates="client", lazy="selectin"
+    )
     appointments = relationship(
         "Appointment",
         back_populates="client",
@@ -187,7 +220,25 @@ class Agent(BaseUser):
         cascade="all, delete-orphan",
     )
 
-
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.agent,
     }
+
+
+class Admin(BaseUser):
+    __tablename__ = "admin"
+
+    id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    __mapper_args__ = {
+        "polymorphic_identity": AccountTypeEnum.admin,
+    }
+
+

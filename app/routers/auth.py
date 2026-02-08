@@ -1,11 +1,7 @@
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, status, HTTPException, BackgroundTasks
 from app.models.user import BaseUser
 from app.schemas.user_schema import UserCreate, UserInDB
-from app.services.auth import (
-    process_signup,
-    process_logout,
-    get_user
-)
+from app.services.auth import process_signup, process_logout, get_user
 from app.services.auth import authenticate_user, create_access_token, switch_account
 from app.utils.enums import AccountTypeEnum
 from core.dependecies import PassWordRequestForm, VerificationException
@@ -18,7 +14,7 @@ from app.schemas.auth_schema import (
     SwitchAccountType,
     TokenData,
     ForgotPasswordVerifyRequest,
-    ForgotPasswordResetRequest
+    ForgotPasswordResetRequest,
 )
 from core.configs import settings
 from core.logger import logger
@@ -45,32 +41,35 @@ router = APIRouter(
     status_code=status.HTTP_202_ACCEPTED,
     description=settings.SIGN_UP_DESC,
 )
-async def signup_user(request: UserCreate, db: DBSession):
+async def signup_user(
+    request: UserCreate, db: DBSession, background_tasks: BackgroundTasks
+):
     # NOTE - Process signup
-    return await process_signup(request, db)  # type: ignore # type: ignore
+    return await process_signup(request, db, background_tasks)  # type: ignore # type: ignore
 
 
 @router.post(
     "/verify-account", response_model=Token, status_code=status.HTTP_201_CREATED
 )
 async def verify_account(current_user: OtpVerification, db: DBSession):
-    refresh_user = await db.get(BaseUser,current_user.id)
-    refresh_user.verified = True # type: ignore
+    refresh_user = await db.get(BaseUser, current_user.id)
+    refresh_user.verified = True  # type: ignore
     db.add(refresh_user)
     await db.commit()
 
     scopes = [current_user.account_type.value, current_user.role.value]  # type: ignore
     access_token = await create_access_token(
-        data=TokenData(sub=current_user.id, scopes=scopes) # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes)  # type: ignore
     )
     return Token(access_token=access_token)
-    
 
 
 # NOTE - Login Route
 @router.post("/login", response_model=Token)
-async def login_for_access_token(form_data: PassWordRequestForm, db: DBSession) -> Token:
-    login_data = LoginData(**form_data.__dict__) # type: ignore
+async def login_for_access_token(
+    form_data: PassWordRequestForm, db: DBSession
+) -> Token:
+    login_data = LoginData(**form_data.__dict__)  # type: ignore
     user: UserInDB = await authenticate_user(login_data, db)
     scopes = [user.account_type.value, user.role.value]  # type: ignore
     access_token = await create_access_token(
@@ -102,8 +101,8 @@ async def reset_pwd(
 
 
 @router.post("/send-otp", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
-async def send_otp(current_user:ActiveUser):
-    otp_sent = await create_send_otp(current_user.email) # type: ignore
+async def send_otp(current_user: ActiveUser):
+    otp_sent = await create_send_otp(current_user.email)  # type: ignore
     if not otp_sent:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Unable to send OTP"
@@ -123,13 +122,13 @@ verify_otp_desc = """Token returned from this endpoint is valid for only `5 minu
     status_code=status.HTTP_200_OK,
     description=verify_otp_desc,
 )
-async def verify_otp_route(payload: OtpSchema,current_user:ActiveUser):
-    verified = await verify_otp( **payload.model_dump(),email=current_user.email) # type: ignore
+async def verify_otp_route(payload: OtpSchema, current_user: ActiveUser):
+    verified = await verify_otp(**payload.model_dump(), email=current_user.email)  # type: ignore
     if not verified:
         raise VerificationException
     scopes = ["otp"]
     access_token = await create_access_token(
-        data=TokenData(sub=current_user.id, scopes=scopes), # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes),  # type: ignore
         expire_time=5,  # type: ignore
     )
     return Token(access_token=access_token)
@@ -150,7 +149,7 @@ async def refresh_token(current_user: ActiveUser, credential: HTTPBearerDependen
     token_exp = await token_exp_time(credential.credentials)
     await blacklist_token(credential.credentials, token_exp)  # type: ignore
     new_token = await create_access_token(
-        data=TokenData(sub=current_user.id, scopes=scopes) # type: ignore
+        data=TokenData(sub=current_user.id, scopes=scopes)  # type: ignore
     )  # type: ignore
     return Token(access_token=new_token)
 
@@ -158,32 +157,45 @@ async def refresh_token(current_user: ActiveUser, credential: HTTPBearerDependen
 # STUB - Switch account type
 @router.post("/switch-account", status_code=status.HTTP_200_OK, response_model=Token)
 async def switch_account_type(
-    credential: HTTPBearerDependency, payload: SwitchAccountType, current_user: ActiveUser, db:DBSession
+    credential: HTTPBearerDependency,
+    payload: SwitchAccountType,
+    current_user: ActiveUser,
+    db: DBSession,
 ):
-    new_token = await switch_account(payload.switch_to, current_user, db) # type: ignore
+    new_token = await switch_account(payload.switch_to, current_user, db)  # type: ignore
     exp_time = await token_exp_time(credential.credentials)
     await blacklist_token(credential.credentials, exp_time)  # type: ignore
     return new_token
 
-@router.post('/forgot-password', status_code=status.HTTP_200_OK,response_model=dict)
-async def forgot_password(
-    payload: ForgotPasswordResetRequest,
-    db: DBSession):
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK, response_model=dict)
+async def forgot_password(payload: ForgotPasswordResetRequest, db: DBSession):
     user = await get_user(payload.email, db)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    otp_sent = await create_send_otp(user.email) # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    otp_sent = await create_send_otp(user.email)  # type: ignore
     if not otp_sent:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Unable to send OTP")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Unable to send OTP"
+        )
     return {"detail": "OTP sent"}
 
-@router.post('/verify-forgot-password', status_code=status.HTTP_200_OK,response_model=Token)
+
+@router.post(
+    "/verify-forgot-password", status_code=status.HTTP_200_OK, response_model=Token
+)
 async def verify_forgot_password(payload: ForgotPasswordVerifyRequest, db: DBSession):
     user = await get_user(payload.email, db)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    verified = await verify_otp(payload.otp, user.email) # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    verified = await verify_otp(payload.otp, user.email)  # type: ignore
     if not verified:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-    token = await create_access_token(data=TokenData(sub=user.id), expire_time=5) # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"
+        )
+    token = await create_access_token(data=TokenData(sub=user.id), expire_time=5)  # type: ignore
     return Token(access_token=token)
