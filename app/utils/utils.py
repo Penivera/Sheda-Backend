@@ -5,6 +5,7 @@ from typing import Any
 from datetime import datetime, timezone
 from pydantic import AnyUrl
 import os
+from cloudinary import uploader
 
 
 def decode_url(url: AnyUrl) -> str:
@@ -15,13 +16,14 @@ def hash_password(password: Any) -> str:
     return settings.pwd_context.hash(password)
 
 
+
 def verify_password(password: Any, password_hash: str) -> bool:
     return settings.pwd_context.verify(password, password_hash)
 
 
 async def verify_otp(otp: str, email: str):
     stored_otp = await redis.get(settings.OTP_PREFIX.format(email))
-    if stored_otp and stored_otp.decode() == otp:
+    if stored_otp and stored_otp== otp:
         logger.info("otp verified")
         await redis.delete(settings.OTP_PREFIX.format(email))
         logger.info(f"{email} OTP Data deleted from redis")
@@ -60,3 +62,17 @@ async def read_media_dir() -> list[str] | None:
             ]
             logger.info(file_list)
         return file_list
+
+async def upload_media_file_to_cloudinary(base64:str):
+    #convert base64 to bytes
+    file_bytes = base64.encode('utf-8')
+    try:
+        upload_result = uploader.upload(
+            file_bytes,
+            overwrite=True,
+        )
+        return upload_result.get("secure_url")  # type: ignore
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        return None
+

@@ -17,7 +17,7 @@ from app.utils.enums import AccountTypeEnum, UserRole
 from fastapi.security import SecurityScopes
 from pydantic import EmailStr
 from app.utils.utils import blacklist_token, token_exp_time
-from app.models.user import BaseUser
+from app.models.user import Agent, BaseUser, Client
 from dataclasses import dataclass
 from typing import List
 
@@ -325,11 +325,9 @@ async def get_websocket_user(
 
     if not token:
         logger.warning("WebSocket auth failed: No token provided")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: No token provided")
         return None
 
-    # Log truncated token for debugging (first 20 chars only)
-    logger.info(f"Extracted token: {token[:20]}...")
     
     try:
         payload: dict = jwt.decode(
@@ -338,25 +336,25 @@ async def get_websocket_user(
         identifier = payload.get("sub")
         if not identifier:
             logger.warning("WebSocket auth failed: No subject in token")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: No subject in token")
             return None
         
         user: UserInDB = await get_user(identifier, db)  # type: ignore
         if not user:
             logger.warning("WebSocket auth failed: User not found")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User not found")
             return None
         
         logger.info(f"WebSocket auth successful: {user.email}")
         
         if not user.is_active:
             logger.warning("WebSocket auth failed: User inactive")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User inactive")
             return None
         
         if not user.verified:
             logger.warning("WebSocket auth failed: User unverified")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User unverified")
             return None
         
         # Accept connection with subprotocol if token was from protocol header
@@ -370,10 +368,10 @@ async def get_websocket_user(
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return None
+        return
 
 
-ActiveVerifiedWSUser = Annotated[BaseUser | None, Depends(get_websocket_user)]
+ActiveVerifiedWSUser = Annotated[BaseUser | Client | Agent, Depends(get_websocket_user)]
 
 
 async def reset_password(user: UserInDB, db: DBSession, new_password: str):

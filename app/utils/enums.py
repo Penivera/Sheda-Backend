@@ -12,7 +12,6 @@ PhoneStr = Annotated[
         ],
         description="Phone number in international format",
         pattern=settings.PHONE_REGEX,  # type: ignore
-        min_length=10,
         max_length=15,
     ),
 ]
@@ -21,7 +20,8 @@ PhoneStr = Annotated[
 class AccountTypeEnum(str, Enum):
     client = "client"
     agent = "agent"
-    
+    admin = "admin"
+
     @staticmethod
     def to_list() -> list:
         return [e.value for e in AccountTypeEnum]
@@ -65,7 +65,6 @@ class PropertyStatEnum(str, Enum):
     available = "available"
     sold = "sold"
     rented = "rented"
-    
 
 
 class UserRole(str, Enum):

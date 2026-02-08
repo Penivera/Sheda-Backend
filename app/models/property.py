@@ -11,7 +11,7 @@ from sqlalchemy import (
     Time,
 )
 from sqlalchemy.orm import mapped_column, Mapped, relationship
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from app.utils.enums import (
     ListingTypeEnum,
     PropertyTypeEnum,
@@ -19,6 +19,11 @@ from app.utils.enums import (
     WeekDayEnum,
     PropertyStatEnum,
 )
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 class Property(Base):
@@ -37,6 +42,10 @@ class Property(Base):
         nullable=False,
     )
     description: Mapped[str] = mapped_column(
+        String,
+        nullable=True,
+    )
+    blockchain_property_id: Mapped[str] = mapped_column(
         String,
         nullable=True,
     )
@@ -67,13 +76,13 @@ class Property(Base):
         default=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
     )
     bathroom: Mapped[int] = mapped_column(
         Integer,
@@ -174,9 +183,11 @@ class Appointment(Base):
     status: Mapped[AppointmentStatEnum] = mapped_column(
         Enum(AppointmentStatEnum), default=AppointmentStatEnum.pending
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, onupdate=datetime.now
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
     client = relationship("Client", back_populates="appointments", lazy="selectin")
     agent = relationship("Agent", back_populates="appointments", lazy="selectin")
@@ -217,9 +228,11 @@ class Contract(Base):
         Enum(ListingTypeEnum), nullable=False
     )
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    start_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    start_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
     end_date: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )  # For rentals
     # NOTE -  Change to True once the agent confirms payment
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -258,7 +271,9 @@ class PaymentConfirmation(Base):
         Integer, ForeignKey("agent.id", ondelete="CASCADE"), nullable=False
     )
     is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
     contract = relationship(
         "Contract", back_populates="payment_confirmation", lazy="selectin"

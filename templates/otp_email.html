@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sheda Solutions - OTP Verification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background-color: #ffffff;
+            padding: 24px;
+            text-align: center;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .header img {
+            max-width: 180px;
+            height: auto;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 30px;
+            color: #555555;
+        }
+
+        .otp-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .otp-code {
+            font-family: monospace;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            color: #2c3e50;
+            background-color: #f8f9fa;
+            padding: 16px 32px;
+            border-radius: 6px;
+            border: 1px dashed #ced4da;
+            display: inline-block;
+        }
+
+        .expiry-info {
+            font-size: 14px;
+            color: #777777;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 30px;
+            border-left: 4px solid #ffeeba;
+        }
+
+        .footer {
+            background-color: #2c3e50;
+            color: #ffffff;
+            padding: 24px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #ffffff;
+            text-decoration: none;
+            margin: 0 8px;
+        }
+
+        .social-links {
+            margin-bottom: 16px;
+        }
+
+        .copyright {
+            opacity: 0.8;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header with Logo -->
+        <div class="header">
+            <a href="https://shedasolutions.com" target="_blank">
+                <img src="https://shedasolutions.com/sheda-logo.svg" alt="Sheda Solutions">
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <div class="greeting">Hello There,</div>
+
+            <div class="message">
+                You requested a one-time password (OTP) to verify your account. Please use the verification code below
+                to complete your request.
+            </div>
+
+            <div class="otp-container">
+                <div class="otp-code">{{ otp }}</div>
+                <div class="expiry-info">
+                    This code is valid for <strong>{{ expiry }} minutes</strong>.
+                </div>
+            </div>
+
+            <div class="message">
+                If you didn’t request this code, you can safely ignore this email. No changes will be made to your
+                account.
+            </div>
+
+            <div class="warning">
+                <strong>Safety Tip:</strong> For security reasons, never share your OTP with anyone. Sheda Solutions
+                staff will never ask for your password or OTP.
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="social-links">
+                <a href="https://x.com/Shedasolutions">Twitter</a> |
+                <a href="https://t.me/shedasolutions">Telegram</a> |
+                <a href="https://www.linkedin.com/company/sinas-sheda-solutions/">LinkedIn</a> |
+                <a href="https://www.instagram.com/shedasolutions">Instagram</a>
+            </div>
+            <p>
+                Best regards,<br>
+                Sheda Solutions Team
+            </p>
+            <p>
+                Need help? Contact us as <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+            </p>
+            <div class="copyright">
+                &copy; 2025 Sheda Solutions. All rights reserved.
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -75,10 +75,12 @@ async def update_listing(
     update_data: PropertyUpdate,
     db: AsyncSession,
 ):
-    property = next(
-        (listing for listing in current_user.listing if listing.id == property_id),  # type: ignore
-        None,
+    query = select(Property).where(
+        Property.id == property_id, Property.agent_id == current_user.id
     )
+    result = await db.execute(query)
+    property = result.scalar_one_or_none()
+
     if not property:
         raise HTTPException(status_code=404, detail="Property not found")
 
@@ -88,16 +90,16 @@ async def update_listing(
         setattr(property, key, value)
 
     if update_data.images is not None:
-        # NOTE  Convert dictionaries to PropertyImage instances
-        property_images = [
+        property.images = [
             PropertyImage(**image_data.model_dump())
             for image_data in update_data.images
         ]
-    property.images = property_images  # type: ignore
+
     db.add(property)
     await db.commit()
     await db.refresh(property)
     return property
+
 
 
 async def filtered_property(filter_query: FilterParams, db: AsyncSession):

@@ -2,21 +2,31 @@ from fastapi import Depends, Form, HTTPException, status
 from core.database import get_db
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi.security import OAuth2PasswordRequestForm,HTTPBearer,HTTPAuthorizationCredentials
+from fastapi.security import (
+    OAuth2PasswordRequestForm,
+    HTTPBearer,
+    HTTPAuthorizationCredentials,
+)
 from jinja2 import Environment, FileSystemLoader
 from fastapi.security import OAuth2PasswordBearer
 from app.utils.enums import AccountTypeEnum
 from core.configs import settings
-from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel, OAuthFlowPassword,SecuritySchemeType
+from fastapi.openapi.models import (
+    OAuthFlows as OAuthFlowsModel,
+    OAuthFlowPassword,
+    SecuritySchemeType,
+)
 
-env = Environment(loader=FileSystemLoader("app/templates"))
+env = Environment(loader=FileSystemLoader("templates"))
+
 
 class HTTPBearerWithScopes(HTTPBearer):
     def __init__(self, scopes: dict):
         super().__init__()
-        self.model.flows = OAuthFlowsModel( # type: ignore
+        self.model.flows = OAuthFlowsModel(  # type: ignore
             password=OAuthFlowPassword(tokenUrl="token", scopes=scopes)
         )
+
 
 class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
     def __init__(
@@ -25,12 +35,14 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         password: str = Form(description="Enter Your Password", default="admin"),
     ):
         super().__init__(username=username, password=password)
-scopes={
-        AccountTypeEnum.agent.value: "Allow creating and managing products",
-        AccountTypeEnum.client.value: "Allow view and purchase of products",
-        "otp": "Temporary access for OTP verification",
-        "admin": "Admin access to all endpoints",
-    }
+
+
+scopes = {
+    AccountTypeEnum.agent.value: "Allow creating and managing products",
+    AccountTypeEnum.client.value: "Allow view and purchase of products",
+    "otp": "Temporary access for OTP verification",
+    "admin": "Admin access to all endpoints",
+}
 security = HTTPBearerWithScopes(scopes=scopes)
 
 HTTPBearerDependency = Annotated[HTTPAuthorizationCredentials, Depends(security)]

@@ -171,7 +171,9 @@ cython_debug/
 .pypirc
 
 *.db
-*jpeg
-*jpg 
-*png 
 *.rdb
+
+# Ignore uploaded media but keep static assets
+media/uploads/
+!static/
+!static/*

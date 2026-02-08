@@ -4,7 +4,7 @@ sys.path.append("..")
 from app.models.user import Agent, Client
 from core.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.configs import pwd_context
+from core.configs import settings
 import asyncio
 
 
@@ -12,7 +12,7 @@ async def test_create_suer(db: AsyncSession):
     new_user_1 = Agent(
         username="Admin",
         email="penivera655@gmail.com",
-        password=pwd_context.hash("admin"),
+        password=settings.pwd_context.hash("admin"),
     )
     db.add(new_user_1)
     await db.commit()
@@ -20,7 +20,7 @@ async def test_create_suer(db: AsyncSession):
     new_user = Client(
         username="Admin",
         email="penivera655@gmail.com",
-        password=pwd_context.hash("admin"),
+        password=settings.pwd_context.hash("admin"),
     )
     db.add(new_user)
     await db.commit()

@@ -9,7 +9,7 @@ from app.schemas.property_schema import PropertyShow, AvailabilityShow, Appointm
 
 # NOTE - Base User Schema and response schema
 class BaseUserSchema(BaseModel):
-    profile_pic: Annotated[
+    avatar_url: Annotated[
         Optional[Union[AnyUrl, str]],
         AfterValidator(decode_url),
         Field(examples=["https://example/img/user.jpg"], max_length=255),
@@ -74,7 +74,7 @@ class UserInDB(UserShow):
 
 
 class UserUpdate(BaseUserSchema):
-    profile_pic: Annotated[
+    avatar_url: Annotated[
         Optional[Union[AnyUrl, str]],
         AfterValidator(decode_url),
         Field(examples=["https://example/img/user.jpg"], max_length=255),
@@ -104,7 +104,7 @@ FileDir = Literal["profile", "property"]
 
 
 class AgentFeed(BaseModel):
-    profile_pic: Optional[Union[AnyUrl, str]] = None
+    avatar_url: Optional[Union[AnyUrl, str]] = None
     username: Optional[str] = None
     email: EmailStr
     phone_number: Optional[PhoneStr] = None

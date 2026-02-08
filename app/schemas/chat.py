@@ -39,7 +39,7 @@ class UserInfoSchema(BaseModel):
     """Basic user info for chat context"""
     id: int
     username: Optional[str] = None
-    profile_pic: Optional[str] = None
+    avatar_url: Optional[str] = None
     fullname: Optional[str] = None
 
     class Config:
@@ -78,7 +78,7 @@ class ConversationSchema(BaseModel):
     """Represents a conversation with another user"""
     other_user_id: int
     other_user_name: Optional[str] = None
-    other_user_profile_pic: Optional[str] = None
+    other_user_avatar_url: Optional[str] = None
     other_user_fullname: Optional[str] = None
     last_message: Optional[str] = None
     last_message_timestamp: Optional[datetime] = None
