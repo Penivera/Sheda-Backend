@@ -1,14 +1,24 @@
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.routers import auth, listing, user, chat, media, websocket, rating
+from app.routers import (
+    auth,
+    listing,
+    user,
+    chat,
+    media,
+    websocket,
+    rating,
+    transactions,
+    notifications,
+    wallets,
+    minted_property,
+)
 from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
 from core.middleware.error import ErrorHandlerMiddleware
 from core.admin.admin import admin
-
-
 
 
 def create_app() -> FastAPI:
@@ -31,10 +41,14 @@ def create_app() -> FastAPI:
             ]
         ),
     )
-    
+
     if not os.path.exists("static"):
         os.makedirs("static")
-    app.mount("/static", StaticFiles(directory=os.path.join(settings.BASE_DIR, "static")), name="static")
+    app.mount(
+        "/static",
+        StaticFiles(directory=os.path.join(settings.BASE_DIR, "static")),
+        name="static",
+    )
 
     # NOTE - Include Routers
     app.include_router(auth.router, prefix=settings.API_V_STR)
@@ -42,21 +56,24 @@ def create_app() -> FastAPI:
     app.include_router(listing.router, prefix=settings.API_V_STR)
     app.include_router(chat.router, prefix=settings.API_V_STR)
     app.include_router(media.router, prefix=settings.API_V_STR)
-    app.include_router(websocket.router,prefix=settings.API_V_STR)
+    app.include_router(websocket.router, prefix=settings.API_V_STR)
     app.include_router(rating.router, prefix=settings.API_V_STR)
+    app.include_router(transactions.router, prefix=settings.API_V_STR)
+    app.include_router(notifications.router, prefix=settings.API_V_STR)
+    app.include_router(wallets.router, prefix=settings.API_V_STR)
+    app.include_router(minted_property.router, prefix=settings.API_V_STR)
 
-    # # # STUB - Set in full production
-    # app.add_middleware(
-    #     CORSMiddleware,
-    #     allow_origins=["*"] if settings.DEBUG_MODE else settings.ORIGINS,
-    #     allow_credentials=True,
-    #     allow_methods=["*"] if settings.DEBUG_MODE else settings.METHODS,
-    #     allow_headers=["*"] if settings.DEBUG_MODE else settings.ALLOW_HEADERS,
-    # )
+    # NOTE - Fully permissive CORS (dev only)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.add_middleware(ErrorHandlerMiddleware)
 
     # Mount static files directory (create if not exists for production)
-    
 
     admin.mount_to(app)
 

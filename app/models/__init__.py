@@ -12,6 +12,13 @@ from .property import (
 )
 from .chat import ChatMessage
 from .rating import Rating
+from .transaction import (
+    WalletMapping,
+    TransactionRecord,
+    TransactionNotification,
+    TransactionAuditLog,
+    MintedPropertyDraft,
+)
 
 __all__ = [
     "BaseUser",
@@ -29,4 +36,9 @@ __all__ = [
     "PaymentConfirmation",
     "ChatMessage",
     "Rating",
+    "WalletMapping",
+    "TransactionRecord",
+    "TransactionNotification",
+    "TransactionAuditLog",
+    "MintedPropertyDraft",
 ]

@@ -71,3 +71,28 @@ class UserRole(str, Enum):
     USER = "user"
     ADMIN = "admin"
     MODERATOR = "moderator"
+
+
+class TransactionStatusEnum(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+    cancelled = "cancelled"
+    docs_released = "docs_released"
+    docs_confirmed = "docs_confirmed"
+    payment_released = "payment_released"
+    completed = "completed"
+    disputed = "disputed"
+
+
+class TransactionEventEnum(str, Enum):
+    bid_accepted = "bid_accepted"
+    bid_rejected = "bid_rejected"
+    docs_released = "docs_released"
+    docs_confirmed = "docs_confirmed"
+    payment_released = "payment_released"
+
+
+class TransactionActionEnum(str, Enum):
+    purchase = "purchase"
+    lease = "lease"

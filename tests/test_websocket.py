@@ -19,7 +19,10 @@ class TestIsJwtLike:
         from app.services.user_service import is_jwt_like
 
         # Standard JWT format
-        assert is_jwt_like("eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiIxMjM0NTY3ODkw.signature") is True
+        assert (
+            is_jwt_like("eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiIxMjM0NTY3ODkw.signature")
+            is True
+        )
         assert is_jwt_like("header.payload.signature") is True
         assert is_jwt_like("abc123_-.xyz789_-.sig_-") is True
         assert is_jwt_like("a.b.c") is True
@@ -149,7 +152,11 @@ class TestGetWebSocketUser:
         )
 
         assert result is None
-        mock_websocket.close.assert_called_once_with(code=status.WS_1008_POLICY_VIOLATION)
+        mock_websocket.close.assert_called_once()
+        assert (
+            mock_websocket.close.call_args.kwargs.get("code")
+            == status.WS_1008_POLICY_VIOLATION
+        )
 
     @pytest.mark.asyncio
     async def test_auth_extracts_token_from_bearer_protocol(self):
@@ -157,9 +164,7 @@ class TestGetWebSocketUser:
         from app.services.user_service import get_websocket_user
 
         mock_websocket = MagicMock(spec=WebSocket)
-        mock_websocket.headers = {
-            "sec-websocket-protocol": "Bearer.test_token_value"
-        }
+        mock_websocket.headers = {"sec-websocket-protocol": "Bearer.test_token_value"}
         mock_websocket.accept = AsyncMock()
         mock_db = AsyncMock()
 
@@ -180,7 +185,9 @@ class TestGetWebSocketUser:
 
                 assert result is not None
                 assert result.id == 1
-                mock_websocket.accept.assert_called_once_with(subprotocol="Bearer.test_token_value")
+                mock_websocket.accept.assert_called_once_with(
+                    subprotocol="Bearer.test_token_value"
+                )
 
     @pytest.mark.asyncio
     async def test_auth_with_query_token(self):
@@ -236,7 +243,11 @@ class TestGetWebSocketUser:
                 )
 
                 assert result is None
-                mock_websocket.close.assert_called_once_with(code=status.WS_1008_POLICY_VIOLATION)
+                mock_websocket.close.assert_called_once()
+                assert (
+                    mock_websocket.close.call_args.kwargs.get("code")
+                    == status.WS_1008_POLICY_VIOLATION
+                )
 
     @pytest.mark.asyncio
     async def test_auth_fails_for_unverified_user(self):
@@ -263,7 +274,11 @@ class TestGetWebSocketUser:
                 )
 
                 assert result is None
-                mock_websocket.close.assert_called_once_with(code=status.WS_1008_POLICY_VIOLATION)
+                mock_websocket.close.assert_called_once()
+                assert (
+                    mock_websocket.close.call_args.kwargs.get("code")
+                    == status.WS_1008_POLICY_VIOLATION
+                )
 
     @pytest.mark.asyncio
     async def test_auth_with_access_token_subprotocol_format(self):
@@ -293,7 +308,9 @@ class TestGetWebSocketUser:
                 )
 
                 assert result is not None
-                mock_websocket.accept.assert_called_once_with(subprotocol="access_token")
+                mock_websocket.accept.assert_called_once_with(
+                    subprotocol="access_token"
+                )
 
     @pytest.mark.asyncio
     async def test_auth_with_raw_jwt_in_protocol(self):
