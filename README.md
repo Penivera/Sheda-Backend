@@ -113,6 +113,7 @@ This is the backend system for the real estate application. It handles user auth
 
 - Clients book an appointment with an agent for a property.
 - The agent confirms or rejects the appointment.
+- Appointment requests include a full `requested_time` datetime (ISO 8601), and availability matching uses the weekday and time portion.
 
 ### 4️⃣ **Payment & Contract Flow**
 
@@ -148,6 +149,8 @@ This is the backend system for the real estate application. It handles user auth
 - `POST /appointments` – Client books an appointment.
 - `PATCH /appointments/{id}/confirm` – Agent confirms appointment.
 - `DELETE /appointments/{id}` – Cancel appointment.
+
+**Payload note:** booking requires `requested_time` as an ISO 8601 datetime (e.g., `2026-02-15T14:30:00Z`).
 
 ### **Payments & Contracts**
 
