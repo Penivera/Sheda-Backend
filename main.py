@@ -1,7 +1,19 @@
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.routers import auth, listing, user, chat, media, websocket, rating
+from app.routers import (
+    auth,
+    listing,
+    user,
+    chat,
+    media,
+    websocket,
+    rating,
+    transactions,
+    notifications,
+    wallets,
+    minted_property,
+)
 from core.starter import lifespan
 from core.configs import settings
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +58,10 @@ def create_app() -> FastAPI:
     app.include_router(media.router, prefix=settings.API_V_STR)
     app.include_router(websocket.router, prefix=settings.API_V_STR)
     app.include_router(rating.router, prefix=settings.API_V_STR)
+    app.include_router(transactions.router, prefix=settings.API_V_STR)
+    app.include_router(notifications.router, prefix=settings.API_V_STR)
+    app.include_router(wallets.router, prefix=settings.API_V_STR)
+    app.include_router(minted_property.router, prefix=settings.API_V_STR)
 
     # NOTE - Fully permissive CORS (dev only)
     app.add_middleware(
