@@ -29,6 +29,10 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
   - Secure password hashing
   - Redis for caching and temporary storage
   - CORS handling
+- **Transaction Lifecycle**
+  - Aggregated transaction feed
+  - Document upload support for agreement NFTs
+  - Transaction notifications and audit logs
 
 ## **Tech Stack**
 
@@ -155,6 +159,38 @@ This is the backend system for the real estate application. It handles user auth
 
 - `POST /chats` – Send a message.
 - `GET /chats/{user_id}` – Retrieve chat history.
+
+### **Transactions**
+
+- `GET /transactions?status=ongoing|completed|cancelled` – Aggregated transaction feed.
+- `POST /transactions/{bid_id}/upload-documents` – Upload agreement documents.
+
+### **Notifications**
+
+- `POST /notifications/transaction-update` – Store and broadcast transaction updates.
+
+### **Users & Wallets**
+
+- `GET /users/by-wallet/{wallet_id}` – Resolve backend user from wallet.
+- `POST /users/wallets/register` – Register wallet mapping for current user.
+
+### **Minted Properties**
+
+- `POST /minted-properties/register` – Register a newly minted on-chain property.
+- `POST /minted-properties/{minted_id}/create-listing` – Create a backend listing from a minted property.
+
+## Mint-First Listing Flow
+
+Use this flow when the property NFT is minted on-chain before a backend listing exists.
+
+1. **Mint on-chain** using the smart contract `mint_property(...)` to get `blockchain_property_id`.
+2. **Register minted property** in the backend:
+  - `POST /api/v1/minted-properties/register` with `blockchain_property_id` and owner wallet.
+3. **Create backend listing** from the minted draft:
+  - `POST /api/v1/minted-properties/{minted_id}/create-listing` with full `PropertyBase` data.
+4. The backend automatically binds `blockchain_property_id` to the new listing.
+
+This keeps on-chain assets and backend listings aligned without requiring a backend listing to exist before minting.
 
 ## Database Models
 

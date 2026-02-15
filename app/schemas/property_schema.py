@@ -19,7 +19,7 @@ class PropertyImage(BaseModel):
 class PropertyBase(BaseModel):
     title: str
     description: str
-    blockchain_property_id: Optional[str] = None
+    blockchain_property_id: Optional[int] = None
     location: str
     price: float
     property_type: PropertyTypeEnum
@@ -54,7 +54,7 @@ class PropertyShow(PropertyBase):
 class PropertyUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    blockchain_property_id: Optional[str] = None
+    blockchain_property_id: Optional[int] = None
     location: Optional[str] = None
     price: Optional[float] = None
     property_type: Optional[PropertyTypeEnum] = None
