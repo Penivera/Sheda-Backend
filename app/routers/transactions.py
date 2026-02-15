@@ -38,7 +38,7 @@ async def upload_transaction_documents(
     current_user: ActiveUser,
     db: DBSession,
     images: Annotated[List[UploadFile], File(...)],
-    description: Annotated[Optional[str], Form(None)] = None,
+    description: Annotated[Optional[str], Form()] = None,
 ):
     if not images:
         raise HTTPException(status_code=400, detail="No files provided")
@@ -65,4 +65,6 @@ async def upload_transaction_documents(
     if not uploaded_urls:
         raise HTTPException(status_code=400, detail="No valid files uploaded")
 
-    return TransactionUploadResponse(uploaded_urls=uploaded_urls, description=description)
+    return TransactionUploadResponse(
+        uploaded_urls=uploaded_urls, description=description
+    )
