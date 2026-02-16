@@ -5,7 +5,7 @@ set -e
 
 # Run database migrations
 echo "Running database migrations..."
-#alembic upgrade head
+alembic upgrade head
 
 # Start the application with Gunicorn
 # Adjust workers/bind address as needed via environment variables or defaults
