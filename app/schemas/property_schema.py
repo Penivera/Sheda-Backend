@@ -20,6 +20,9 @@ class PropertyBase(BaseModel):
     title: str
     description: str
     blockchain_property_id: Optional[int] = None
+    blockchain_owner_id: Optional[str] = None
+    is_nft_minted: Optional[bool] = False
+    transaction_hash: Optional[str] = None
     location: str
     price: float
     property_type: PropertyTypeEnum
