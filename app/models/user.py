@@ -21,7 +21,6 @@ from starlette.requests import Request
 from html import escape
 
 
-
 def utc_now() -> datetime:
     """Return current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
@@ -137,20 +136,20 @@ class BaseUser(Base):
         return (
             f"User(id={self.id}, email={self.email}, account_type={self.account_type})"
         )
-    
+
     async def __admin_repr__(self, request: Request):
         return f"{self.fullname or self.username or self.email},account type: {self.account_type}"
-    
+
     async def __admin_select2_repr__(self, request: Request) -> str:
         avatar = escape(self.avatar_url or "")
         name = escape(self.fullname or self.username or self.email or "")
 
         return (
-            f'<div>'
+            f"<div>"
             f'<img src="{avatar}">'
-            f'<span>{name}: </span>'
+            f"<span>{name}: </span>"
             f'<span>{escape(self.account_type or "")}'
-            f'</div>'
+            f"</div>"
         )
 
 
@@ -243,5 +242,3 @@ class Admin(BaseUser):
     __mapper_args__ = {
         "polymorphic_identity": AccountTypeEnum.admin,
     }
-
-
