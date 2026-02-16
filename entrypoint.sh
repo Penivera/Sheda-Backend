@@ -9,7 +9,7 @@ alembic upgrade head
 
 # Start the application with Gunicorn
 # Adjust workers/bind address as needed via environment variables or defaults
-WORKERS=${GUNICORN_WORKERS:-4}
+# WORKERS=${GUNICORN_WORKERS:-4}
 BIND_ADDRESS=${BIND_ADDRESS:-0.0.0.0:8000}
 
 echo "Starting application with Gunicorn ($WORKERS workers) on $BIND_ADDRESS..."
