@@ -30,7 +30,7 @@ class WalletMapping(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
 
-    user = relationship("BaseUser", lazy="selectin")
+    user = relationship("BaseUser", lazy="selectin", passive_deletes=True)
 
 
 class DeviceToken(Base):
@@ -46,7 +46,7 @@ class DeviceToken(Base):
         DateTime(timezone=True), default=utc_now
     )
 
-    user = relationship("BaseUser", lazy="selectin")
+    user = relationship("BaseUser", lazy="selectin", passive_deletes=True)
 
 
 class TransactionRecord(Base):
@@ -102,8 +102,8 @@ class TransactionNotification(Base):
         DateTime(timezone=True), default=utc_now
     )
 
-    recipient = relationship("BaseUser", lazy="selectin")
-    property = relationship("Property", lazy="selectin")
+    recipient = relationship("BaseUser", lazy="selectin", passive_deletes=True)
+    property = relationship("Property", lazy="selectin", passive_deletes=True)
 
 
 class TransactionAuditLog(Base):
@@ -144,3 +144,4 @@ class MintedPropertyDraft(Base):
     )
 
     linked_property = relationship("Property", lazy="selectin")
+

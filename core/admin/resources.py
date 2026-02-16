@@ -237,3 +237,27 @@ class ContractModelView(ModelView):
                 )
 
         return await super().validate(request, data)
+
+
+class WalletMappingModelView(ModelView):
+    icon = "fa fa-wallet"
+
+
+class DeviceTokenModelView(ModelView):
+    icon = "fa fa-mobile"
+
+
+class TransactionRecordModelView(ModelView):
+    icon = "fa fa-exchange-alt"
+
+
+class TransactionNotificationModelView(ModelView):
+    icon = "fa fa-bell"
+
+
+class TransactionAuditLogModelView(ModelView):
+    icon = "fa fa-history"
+
+
+class MintedPropertyDraftModelView(ModelView):
+    icon = "fa fa-file-signature"
