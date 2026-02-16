@@ -33,6 +33,22 @@ class WalletMapping(Base):
     user = relationship("BaseUser", lazy="selectin")
 
 
+class DeviceToken(Base):
+    __tablename__ = "device_token"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False
+    )
+    device_token: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    platform: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+
+    user = relationship("BaseUser", lazy="selectin")
+
+
 class TransactionRecord(Base):
     __tablename__ = "transaction_record"
 

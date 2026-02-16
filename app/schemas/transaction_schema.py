@@ -42,3 +42,14 @@ class TransactionListResponse(BaseModel):
 class TransactionUploadResponse(BaseModel):
     uploaded_urls: List[str]
     description: Optional[str] = None
+
+
+class TimeoutCandidate(BaseModel):
+    transaction_id: str
+    property_id: str
+    status: TransactionStatusEnum
+    updated_at: Optional[datetime] = None
+
+
+class TimeoutCandidatesResponse(BaseModel):
+    data: List[TimeoutCandidate]

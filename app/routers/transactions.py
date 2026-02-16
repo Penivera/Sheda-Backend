@@ -4,11 +4,12 @@ from typing import Annotated, List, Optional
 from cloudinary import uploader
 
 from app.schemas.transaction_schema import (
+    TimeoutCandidatesResponse,
     TransactionListResponse,
     TransactionUploadResponse,
 )
-from app.services.transactions import get_transactions
-from app.services.user_service import ActiveUser
+from app.services.transactions import get_timeout_candidates, get_transactions
+from app.services.user_service import ActiveUser, AdminUser
 from core.dependecies import DBSession
 from core.logger import logger
 
@@ -68,3 +69,22 @@ async def upload_transaction_documents(
     return TransactionUploadResponse(
         uploaded_urls=uploaded_urls, description=description
     )
+
+
+@router.get(
+    "/timeouts",
+    response_model=TimeoutCandidatesResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def list_timeout_candidates(
+    current_user: AdminUser,
+    db: DBSession,
+    docs_release_timeout_hours: int = Query(72, ge=1),
+    docs_confirm_timeout_hours: int = Query(72, ge=1),
+):
+    candidates = await get_timeout_candidates(
+        docs_release_timeout_hours=docs_release_timeout_hours,
+        docs_confirm_timeout_hours=docs_confirm_timeout_hours,
+        db=db,
+    )
+    return TimeoutCandidatesResponse(data=candidates)
