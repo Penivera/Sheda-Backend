@@ -5,6 +5,7 @@ set -e
 
 # Run database migrations
 echo "Running database migrations..."
+alembic stamp head
 alembic upgrade head
 
 # Start the application with Gunicorn
