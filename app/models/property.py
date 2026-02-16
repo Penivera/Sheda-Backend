@@ -49,6 +49,21 @@ class Property(Base):
         String,
         nullable=True,
     )
+    transaction_hash:Mapped[str]= mapped_column(
+        String,
+        nullable=True
+    )
+    
+    is_nft_minted:Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    
+    blockchain_owner_id:Mapped[str] = mapped_column(
+        String,
+        nullable=True,
+    )
+    
     price: Mapped[float] = mapped_column(
         Float,
         nullable=False,
