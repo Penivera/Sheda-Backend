@@ -162,7 +162,10 @@ class Client(BaseUser):
         primary_key=True,
     )
     properties: _RelationshipDeclared[Any] = relationship(
-        "Property", back_populates="client", lazy="selectin"
+        "Property",
+        back_populates="client",
+        lazy="selectin",
+        passive_deletes=True,
     )
     appointments = relationship(
         "Appointment",

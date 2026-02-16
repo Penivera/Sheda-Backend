@@ -158,6 +158,7 @@ class PropertyModelView(ModelView):
     name = "Property"
 
 
+
 class PropertyImageModelView(ModelView):
     """Handles Property Image uploads."""
 

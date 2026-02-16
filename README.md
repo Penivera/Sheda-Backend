@@ -167,10 +167,18 @@ This is the backend system for the real estate application. It handles user auth
 
 - `GET /transactions?status=ongoing|completed|cancelled` – Aggregated transaction feed.
 - `POST /transactions/{bid_id}/upload-documents` – Upload agreement documents.
+- `GET /transactions/timeouts` – List timeout candidates for escrow refunds (admin only).
 
 ### **Notifications**
 
 - `POST /notifications/transaction-update` – Store and broadcast transaction updates.
+- `GET /notifications` – List transaction notifications for the current user.
+- `POST /notifications/{id}/read` – Mark a notification as read.
+- `POST /notifications/register-device` – Register a device token for push notifications.
+
+### **Indexer**
+
+- `POST /indexer/transactions` – Ingest blockchain transaction events (admin only).
 
 ### **Users & Wallets**
 
