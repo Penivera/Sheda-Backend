@@ -12,8 +12,8 @@ import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
     logger.info("Tables Created")
     await seed_superadmin()
