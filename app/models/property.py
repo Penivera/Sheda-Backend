@@ -57,6 +57,7 @@ class Property(Base):
     is_nft_minted:Mapped[bool] = mapped_column(
         Boolean,
         default=False,
+        nullable=True,
     )
     
     blockchain_owner_id:Mapped[str] = mapped_column(
