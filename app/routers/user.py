@@ -38,7 +38,9 @@ from app.services.listing import (
     get_payment_info,  # type: ignore # type: ignore # type: ignore
     confirm_payment,
     proccess_approve_payment,
+    proccess_approve_payment,
     run_create_contract,
+    confirm_agent_appointment,
 )
 from typing import Optional
 
@@ -248,3 +250,14 @@ async def create_contract(
     data: ContractCreate, current_user: ActiveVerifiedClient, db: DBSession
 ):
     return await run_create_contract(data, db, current_user)
+
+
+@router.put(
+    "/confirm-appointment/{appointment_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=dict,
+)
+async def confirm_appointment(
+    appointment_id: int, current_user: ActiveAgent, db: DBSession
+):
+    return await confirm_agent_appointment(appointment_id, current_user, db)

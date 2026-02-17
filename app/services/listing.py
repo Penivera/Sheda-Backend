@@ -383,3 +383,39 @@ async def run_create_contract(
     await db.refresh(contract)
 
     return
+
+async def confirm_agent_appointment(
+    appointment_id: int, current_user: UserInDB, db: AsyncSession
+):
+    appointment: Appointment = next(
+        (
+            appointment
+            for appointment in current_user.appointments # type: ignore
+            if appointment.id == appointment_id
+        ),
+        None,
+    )  # type: ignore
+    
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
+        )
+    
+    # Only the agent assigned to the appointment can confirm it
+    if appointment.agent_id != current_user.id:
+         raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to confirm this appointment"
+        )
+
+    if appointment.status != AppointmentStatEnum.pending:
+        raise HTTPException( 
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot confirm appointment with status {appointment.status}",
+        )
+        
+    appointment.status = AppointmentStatEnum.confirmed
+    db.add(appointment)
+    await db.commit()
+    await db.refresh(appointment)
+
+    return {"detail": "Appointment Confirmed", "status": appointment.status}
