@@ -18,7 +18,9 @@ class BaseUserSchema(BaseModel):
     email: Annotated[Optional[EmailStr], Field(examples=["penivera655@gmail.com"])] = (
         None
     )
-    phone_number: Optional[PhoneStr] = None
+    phone_number: Annotated[
+        Optional[PhoneStr], BeforeValidator(lambda x: None if x == "" else x)
+    ] = None
     account_type: Optional[AccountTypeEnum]
     fullname: Optional[str] = None
     location: Optional[str] = None
@@ -50,7 +52,7 @@ class AccountInfoShow(AccountInfoBase):
 
 
 class UserShow(BaseUserSchema):
-    id:int
+    id: int
     agency_name: Optional[str] = None
     is_active: Optional[bool] = None
     is_deleted: Optional[bool] = None
@@ -83,7 +85,9 @@ class UserUpdate(BaseUserSchema):
     email: Annotated[Optional[EmailStr], Field(examples=["penivera655@gmail.com"])] = (
         None
     )
-    phone_number: Optional[PhoneStr] = None
+    phone_number: Annotated[
+        Optional[PhoneStr], BeforeValidator(lambda x: None if x == "" else x)
+    ] = None
     fullname: Optional[str] = None
     location: Optional[str] = None
     kyc_status: Optional[KycStatusEnum] = None
