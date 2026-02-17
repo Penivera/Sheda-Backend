@@ -264,7 +264,7 @@ import re
 
 # JWT pattern: three base64url-encoded segments separated by dots
 # This is a simple pattern that checks for the basic structure of a JWT
-JWT_PATTERN = re.compile(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$')
+JWT_PATTERN = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$")
 
 
 def is_jwt_like(value: str) -> bool:
@@ -274,26 +274,26 @@ def is_jwt_like(value: str) -> bool:
 
 async def get_websocket_user(
     websocket: WebSocket, db: DBSession, token: Annotated[str | None, Query()] = None
-) -> BaseUser | None:
+) -> BaseUser:
     """
     Authenticate a WebSocket connection using JWT token.
-    
+
     Token can be provided via:
     1. Query parameter (?token=...) - Standard approach
     2. Sec-WebSocket-Protocol header with format:
        - "Bearer.{token}" - Recommended format for protocol header auth
        - "access_token, {token}" - Alternative subprotocol format
-    
+
     Returns:
     - The authenticated user on success (connection is accepted)
     - None on failure (connection is closed with WS_1008_POLICY_VIOLATION)
-    
+
     Note: This function handles the WebSocket accept/close internally.
     On successful auth, the connection is accepted (with subprotocol if applicable).
     On failed auth, the connection is closed.
     """
     subprotocol = None
-    
+
     # Check if token provided via query parameter
     if token:
         logger.info("Token provided via query parameter")
@@ -303,7 +303,7 @@ async def get_websocket_user(
         if protocols:
             protocol_list = [p.strip() for p in protocols.split(",")]
             logger.info(f"Sec-WebSocket-Protocol header found: {protocol_list}")
-            
+
             for i, protocol in enumerate(protocol_list):
                 # Format 1: Bearer.{token}
                 if protocol.startswith("Bearer."):
@@ -316,7 +316,12 @@ async def get_websocket_user(
                     subprotocol = "access_token"
                     break
                 # Format 3: Raw token (not a standard protocol name)
-                elif protocol.lower() not in ["chat", "websocket", "graphql-ws", "graphql-transport-ws"]:
+                elif protocol.lower() not in [
+                    "chat",
+                    "websocket",
+                    "graphql-ws",
+                    "graphql-transport-ws",
+                ]:
                     # Check if it looks like a JWT (header.payload.signature format)
                     if is_jwt_like(protocol):
                         token = protocol
@@ -325,10 +330,14 @@ async def get_websocket_user(
 
     if not token:
         logger.warning("WebSocket auth failed: No token provided")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: No token provided")
-        return None
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="WebSocket auth failed: No token provided",
+        )
+        raise HTTPException(
+            status_code=403, detail="WebSocket auth failed: No token provided"
+        )
 
-    
     try:
         payload: dict = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]  # type: ignore
@@ -336,39 +345,61 @@ async def get_websocket_user(
         identifier = payload.get("sub")
         if not identifier:
             logger.warning("WebSocket auth failed: No subject in token")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: No subject in token")
-            return None
-        
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="WebSocket auth failed: No subject in token",
+            )
+            raise HTTPException(
+                status_code=403, detail="WebSocket auth failed: No subject in token"
+            )
+
         user: UserInDB = await get_user(identifier, db)  # type: ignore
         if not user:
             logger.warning("WebSocket auth failed: User not found")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User not found")
-            return None
-        
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="WebSocket auth failed: User not found",
+            )
+            raise HTTPException(
+                status_code=403, detail="WebSocket auth failed: User not found"
+            )
+
         logger.info(f"WebSocket auth successful: {user.email}")
-        
+
         if not user.is_active:
             logger.warning("WebSocket auth failed: User inactive")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User inactive")
-            return None
-        
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="WebSocket auth failed: User inactive",
+            )
+            raise HTTPException(
+                status_code=403, detail="WebSocket auth failed: User inactive"
+            )
+
         if not user.verified:
             logger.warning("WebSocket auth failed: User unverified")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION,reason="WebSocket auth failed: User unverified")
-            return None
-        
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="WebSocket auth failed: User unverified",
+            )
+            raise HTTPException(
+                status_code=403, detail="WebSocket auth failed: User unverified"
+            )
+
         # Accept connection with subprotocol if token was from protocol header
         if subprotocol:
             await websocket.accept(subprotocol=subprotocol)
         else:
             await websocket.accept()
-        
+
         return user
-        
+
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+        raise HTTPException(
+            status_code=403, detail="WebSocket auth failed: Invalid token"
+        )
 
 
 ActiveVerifiedWSUser = Annotated[BaseUser | Client | Agent, Depends(get_websocket_user)]

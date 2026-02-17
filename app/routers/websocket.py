@@ -18,7 +18,7 @@ JWT token is required and can be provided via:
 2. **Sec-WebSocket-Protocol Header** (For WebSocket clients):
    - Format: `Bearer.{jwt_token}`
    - The server will echo back the protocol on successful connection
-   
+
    Example in JavaScript:
    ```javascript
    new WebSocket('ws://host/ws/123', ['Bearer.eyJhbGciOiJIUzI1NiIs...'])
@@ -95,13 +95,13 @@ class WebSocketConnectionManager:
     def connect(self, websocket: WebSocket, user_id: int) -> bool:
         """
         Track a WebSocket connection by user_id.
-        
+
         Note: The WebSocket should already be accepted before calling this method.
-        
+
         Args:
             websocket: The WebSocket connection (already accepted)
             user_id: The authenticated user's ID
-        
+
         Returns True if connection tracking was successful.
         """
         self.active_connections[user_id] = websocket
@@ -161,40 +161,40 @@ ws_manager = WebSocketConnectionManager()
 
 @router.websocket("/chat/{user_id}")
 async def websocket_endpoint(
-    websocket: WebSocket,
-    current_user:ActiveVerifiedWSUser,
-    db: DBSession
+    websocket: WebSocket, current_user: ActiveVerifiedWSUser, db: DBSession
 ):
     """
     WebSocket endpoint for real-time messaging.
 
     ## Authentication
-    
+
     JWT token is required and can be provided via:
-    
+
     1. **Query parameter**: `/ws/{user_id}?token={jwt_token}`
     2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
-    
+
     The `user_id` in the URL path must match the authenticated user's ID.
 
     ## Connection Flow
-    
+
     1. Client connects with token (query param or protocol header)
     2. Server validates token and user
     3. Server accepts connection (echoing subprotocol if used)
     4. Server verifies user_id matches authenticated user
-    
+
     ## Error Codes
-    
+
     - `WS_1008_POLICY_VIOLATION`: Authentication failed or user_id mismatch
 
     ## Message Formats
-    
+
     See module docstring for detailed payload schemas.
     """
-   
-    
-    current_user = UserShow.model_validate(current_user) # type: ignore
+
+    if current_user is None:
+        return
+
+    current_user = UserShow.model_validate(current_user)  # type: ignore
 
     # Track the session (connection already accepted by auth)
     ws_manager.connect(websocket, current_user.id)
@@ -271,9 +271,7 @@ async def websocket_endpoint(
 
 @router.websocket("/chat/global-chat")
 async def websocket_chat(
-    websocket: WebSocket,
-    db: DBSession,
-    current_user:ActiveVerifiedWSUser
+    websocket: WebSocket, db: DBSession, current_user: ActiveVerifiedWSUser
 ):
     """
     WebSocket endpoint for chat messaging.
@@ -308,10 +306,9 @@ async def websocket_chat(
     }
     ```
     """
-    
 
     # Track the session (connection already accepted by auth)
-    ws_manager.connect(websocket, current_user.id) # type: ignore
+    ws_manager.connect(websocket, current_user.id)  # type: ignore
     current_user_show = UserShow.model_validate(current_user)
 
     try:
