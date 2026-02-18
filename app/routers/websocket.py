@@ -211,6 +211,8 @@ async def websocket_endpoint(
             # Wait for incoming messages
             try:
                 data = await websocket.receive_json()
+            except WebSocketDisconnect:
+                raise
             except Exception:
                 await websocket.send_json({"error": "Invalid JSON received"})
                 continue
@@ -315,6 +317,8 @@ async def websocket_chat(
         while True:
             try:
                 data = await websocket.receive_json()
+            except WebSocketDisconnect:
+                raise
             except Exception:
                 await websocket.send_text("Invalid JSON received")
                 continue
