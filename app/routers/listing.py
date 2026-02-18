@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Query, HTTPException
 from core.dependecies import DBSession
 from app.schemas.property_schema import (
     PropertyBase,
@@ -46,10 +46,9 @@ async def list_property(
 async def get_my_listing(
     current_user: ActiveAgent,
     filter_query: Annotated[FilterParams, Query()],
-    db: DBSession):
-    return await get_user_properties(current_user,filter_query, db)
-
-
+    db: DBSession,
+):
+    return await get_user_properties(current_user, filter_query, db)
 
 
 update_desc = """pick your field of interest and ignore the rest, the server will dynamically update them"""
@@ -101,6 +100,7 @@ async def get_property(
 ):
     return await get_property_by_id(property_id, db)
 
+
 @router.get(
     "/agent-profile/{agent_id}",
     response_model=AgentFeed,
@@ -123,3 +123,202 @@ async def delete_property(
     db: DBSession,
 ):
     return await delist_property(property_id, db, current_user)
+
+
+# Elasticsearch Search Endpoints (Phase 2)
+
+try:
+    from app.services.search import get_search_service, PropertySearchFilter
+    from core.logger import logger
+
+    SEARCH_AVAILABLE = True
+except ImportError:
+    SEARCH_AVAILABLE = False
+    logger.warning("Search service not available")
+
+
+@router.get(
+    "/search",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    description="Full-text search for properties with advanced filtering",
+)
+async def search_properties(
+    query: str = Query(..., min_length=1, description="Search query"),
+    min_price: Annotated[int, Query(None, description="Minimum price")] = None,
+    max_price: Annotated[int, Query(None, description="Maximum price")] = None,
+    location: Annotated[str, Query(None, description="Location filter")] = None,
+    property_type: Annotated[str, Query(None, description="Property type")] = None,
+    listing_type: Annotated[
+        str, Query(None, description="Listing type (rent/sell)")
+    ] = None,
+    min_bedroom: Annotated[
+        int, Query(None, ge=1, description="Minimum bedrooms")
+    ] = None,
+    max_bedroom: Annotated[
+        int, Query(None, ge=1, description="Maximum bedrooms")
+    ] = None,
+    min_bathroom: Annotated[
+        int, Query(None, ge=1, description="Minimum bathrooms")
+    ] = None,
+    max_bathroom: Annotated[
+        int, Query(None, ge=1, description="Maximum bathrooms")
+    ] = None,
+    furnished: Annotated[
+        bool, Query(None, description="Furnished properties only")
+    ] = None,
+    amenities: Annotated[
+        List[str], Query(None, description="Required amenities")
+    ] = None,
+    sort: Annotated[
+        str, Query("MOST_RELEVANT", description="Sort order")
+    ] = "MOST_RELEVANT",
+    limit: Annotated[int, Query(20, ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(0, ge=0)] = 0,
+):
+    """
+    Search properties using Elasticsearch full-text search.
+
+    Supports:
+    - Fuzzy text search on title and description
+    - Multiple filter types (price range, location, amenities, etc.)
+    - Various sort options (price low/high, newest, oldest, relevance)
+    - Pagination with limit and offset
+
+    Example:
+    ```
+    GET /property/search?query=luxury%20apartment&min_price=1000000&max_price=5000000&location=Lagos
+    ```
+
+    Returns:
+    ```json
+    {
+        "results": [
+            {
+                "id": 1,
+                "title": "Luxury Apartment",
+                "location": "Ikoyi",
+                "price": 3500000,
+                "score": 2.5
+            }
+        ],
+        "total": 45,
+        "limit": 20,
+        "offset": 0
+    }
+    ```
+    """
+    if not SEARCH_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Search service not available",
+        )
+
+    try:
+        service = await get_search_service()
+
+        results = await service.search_properties(
+            query=query,
+            location=location,
+            property_type=property_type,
+            listing_type=listing_type,
+            min_price=min_price,
+            max_price=max_price,
+            min_bedroom=min_bedroom,
+            max_bedroom=max_bedroom,
+            min_bathroom=min_bathroom,
+            max_bathroom=max_bathroom,
+            furnished=furnished,
+            amenities=amenities,
+            sort=sort,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.info(
+            f"Property search executed",
+            extra={
+                "query": query,
+                "total_results": results.get("total", 0),
+                "returned": len(results.get("results", [])),
+            },
+        )
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Error searching properties: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Search failed"
+        )
+
+
+@router.post(
+    "/{property_id}/index",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="Index property in Elasticsearch for full-text search",
+)
+async def index_property_for_search(
+    property_id: int,
+    current_user: ActiveAgent,
+    db: DBSession,
+):
+    """
+    Index a property in Elasticsearch.
+
+    Called automatically when property is created/updated.
+
+    Args:
+        property_id: ID of property to index
+        current_user: Authenticated user (must own property)
+
+    Returns:
+        {"status": "indexed", "property_id": int}
+    """
+    if not SEARCH_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Search service not available",
+        )
+
+    try:
+        # Get property from database
+        property_obj = await get_property_by_id(property_id, db)
+
+        if property_obj.agent_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not own this property",
+            )
+
+        service = await get_search_service()
+
+        await service.index_property(
+            property_id=property_obj.id,
+            title=property_obj.title,
+            description=property_obj.description,
+            location=property_obj.location,
+            price=float(property_obj.price),
+            property_type=property_obj.property_type,
+            listing_type=property_obj.listing_type,
+            status=property_obj.status,
+            bedroom=property_obj.bedroom,
+            bathroom=property_obj.bathroom,
+            furnished=property_obj.furnished,
+            is_negotiable=property_obj.is_negotiable,
+            agent_id=property_obj.agent_id,
+            amenities=property_obj.amenities or [],
+        )
+
+        logger.info(
+            f"Property indexed in Elasticsearch", extra={"property_id": property_id}
+        )
+
+        return {"status": "indexed", "property_id": property_id}
+
+    except Exception as e:
+        logger.error(f"Error indexing property: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to index property",
+        )

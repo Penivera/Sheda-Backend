@@ -54,6 +54,31 @@ class Settings(BaseSettings):
     DB_URL: str = Field(..., description="Database connection URL")
     REDIS_URL: str = Field(..., description="Redis connection URL")
 
+    # External Services (Phase 2)
+    # Firebase Cloud Messaging (Push Notifications)
+    FCM_CREDENTIALS: Optional[str] = Field(
+        default=None,
+        description="Path to Firebase credentials JSON file (e.g., './firebase-credentials.json')",
+    )
+
+    # Persona API (KYC Verification)
+    PERSONA_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Persona API key for KYC verification (get from https://withpersona.com)",
+    )
+    PERSONA_ENVIRONMENT: str = Field(
+        default="sandbox", description="Persona environment: 'sandbox' or 'production'"
+    )
+
+    # Elasticsearch (Full-text Search)
+    ELASTICSEARCH_URL: Optional[str] = Field(
+        default="http://localhost:9200", description="Elasticsearch connection URL"
+    )
+    ELASTICSEARCH_INDEX: str = Field(
+        default="sheda_properties",
+        description="Elasticsearch index name for properties",
+    )
+
     # NOTE -  Host URLs
     PROD_URL: str = Field(..., description="Production Server")
     DEV_URL: str = Field(..., description="Development Server")
@@ -77,15 +102,18 @@ class Settings(BaseSettings):
     CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
     # PINATA Credentials
-    PINATA_SECRET_API_KEY: str = Field(default="Nothing for now", description="Pinata secret api key")
+    PINATA_SECRET_API_KEY: str = Field(
+        default="Nothing for now", description="Pinata secret api key"
+    )
     PINATA_API_KEY: str = Field(default="Nothing for now", description="Pinata api key")
-    PINATA_URL: str = Field(default="https://api.pinata.cloud/pinning/pinFileToIPFS", description="Pinata url")
+    PINATA_URL: str = Field(
+        default="https://api.pinata.cloud/pinning/pinFileToIPFS",
+        description="Pinata url",
+    )
 
     # SECTION FastAdmin / Admin Seeding
-    
-    ADMIN_ROUTE: str = Field(
-        ..., description="FastAdmin route prefix"
-    )
+
+    ADMIN_ROUTE: str = Field(..., description="FastAdmin route prefix")
 
     ADMIN_SEED_ENABLED: bool = Field(
         default=False, description="Enable admin seeding on startup"
@@ -114,7 +142,6 @@ class Settings(BaseSettings):
 
     # Directories
     TEMPLATES_DIR: str = os.path.join(os.getcwd(), "templates")
-    
 
     # Middleware
     ORIGINS: list[str] = Field(..., description="CORS allowed origins")
@@ -159,8 +186,6 @@ class Settings(BaseSettings):
 
 # Instantiate settings
 settings = Settings()  # type: ignore
-
-
 
 
 redis: aioredis.Redis = aioredis.from_url(
