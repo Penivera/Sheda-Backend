@@ -70,6 +70,11 @@ class Settings(BaseSettings):
         default="sandbox", description="Persona environment: 'sandbox' or 'production'"
     )
 
+    # Social Login
+    GOOGLE_CLIENT_ID: Optional[str] = Field(
+        default=None, description="Google OAuth Client ID"
+    )
+
     # Elasticsearch (Full-text Search)
     ELASTICSEARCH_URL: Optional[str] = Field(
         default="http://localhost:9200", description="Elasticsearch connection URL"
@@ -102,13 +107,20 @@ class Settings(BaseSettings):
     CLOUDINARY_URL: str = Field(..., description="cloudinary url")
 
     # PINATA Credentials
+    PINATA_JWT: Optional[str] = Field(
+        default=None, description="Pinata JWT used for v3 uploads"
+    )
     PINATA_SECRET_API_KEY: str = Field(
         default="Nothing for now", description="Pinata secret api key"
     )
     PINATA_API_KEY: str = Field(default="Nothing for now", description="Pinata api key")
     PINATA_URL: str = Field(
-        default="https://api.pinata.cloud/pinning/pinFileToIPFS",
+        default="https://uploads.pinata.cloud/v3/files",
         description="Pinata url",
+    )
+    PINATA_GATEWAY_URL: str = Field(
+        default="https://gateway.pinata.cloud",
+        description="Base URL for Pinata gateway used to construct IPFS links",
     )
 
     # SECTION FastAdmin / Admin Seeding

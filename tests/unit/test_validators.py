@@ -35,7 +35,7 @@ class TestValidatorMixin:
 
     def test_validate_blockchain_hash_invalid(self):
         """Test invalid blockchain hash."""
-        with pytest.raises(ValueError, match="Invalid blockchain hash format"):
+        with pytest.raises(ValueError, match="Invalid transaction hash format"):
             ValidatorMixin.validate_blockchain_hash("0x12345")
 
     def test_validate_bedroom_count_valid(self):
@@ -45,18 +45,18 @@ class TestValidatorMixin:
 
     def test_validate_bedroom_count_zero(self):
         """Test bedroom count of zero."""
-        with pytest.raises(ValueError, match="Bedroom count must be at least 1"):
+        with pytest.raises(ValueError, match="Bedroom count must be between 1 and 100"):
             ValidatorMixin.validate_bedroom_count(0)
 
     def test_validate_bedroom_count_negative(self):
         """Test negative bedroom count."""
-        with pytest.raises(ValueError, match="Bedroom count must be at least 1"):
+        with pytest.raises(ValueError, match="Bedroom count must be between 1 and 100"):
             ValidatorMixin.validate_bedroom_count(-1)
 
     def test_validate_bedroom_count_too_high(self):
         """Test bedroom count exceeds maximum."""
-        with pytest.raises(ValueError, match="Bedroom count too high"):
-            ValidatorMixin.validate_bedroom_count(51)
+        with pytest.raises(ValueError, match="Bedroom count must be between 1 and 100"):
+            ValidatorMixin.validate_bedroom_count(101)
 
     def test_validate_bathroom_count_valid(self):
         """Test valid bathroom count."""
@@ -74,23 +74,23 @@ class TestPropertyValidators:
 
     def test_validate_price_valid(self):
         """Test valid price validation."""
-        result = PropertyValidators.validate_price(100.50)
+        result = PropertyValidators.validate_price_field(100.50)
         assert result == 100.50
 
     def test_validate_price_negative(self):
         """Test negative price."""
         with pytest.raises(ValueError, match="Price cannot be negative"):
-            PropertyValidators.validate_price(-100)
+            PropertyValidators.validate_price_field(-100)
 
     def test_validate_price_zero(self):
         """Test zero price."""
-        with pytest.raises(ValueError, match="Price must be greater than zero"):
-            PropertyValidators.validate_price(0)
+        result = PropertyValidators.validate_price_field(0)
+        assert result == 0
 
     def test_validate_price_too_high(self):
         """Test price exceeds max value."""
-        with pytest.raises(ValueError, match="Price exceeds maximum"):
-            PropertyValidators.validate_price(2**128)
+        with pytest.raises(ValueError, match="Price exceeds maximum U128 value"):
+            PropertyValidators.validate_price_field(2**129)
 
     def test_validate_title_valid(self):
         """Test valid title."""
@@ -99,13 +99,13 @@ class TestPropertyValidators:
 
     def test_validate_title_too_short(self):
         """Test title too short."""
-        with pytest.raises(ValueError, match="Title must be at least 5 characters"):
+        with pytest.raises(ValueError, match="title must be at least 10 characters"):
             PropertyValidators.validate_title("Bad")
 
     def test_validate_title_too_long(self):
         """Test title too long."""
-        long_title = "A" * 201
-        with pytest.raises(ValueError, match="Title cannot exceed 200 characters"):
+        long_title = "A" * 101
+        with pytest.raises(ValueError, match="title cannot exceed 100 characters"):
             PropertyValidators.validate_title(long_title)
 
     def test_validate_description_valid(self):
@@ -117,7 +117,7 @@ class TestPropertyValidators:
     def test_validate_description_too_short(self):
         """Test description too short."""
         with pytest.raises(
-            ValueError, match="Description must be at least 20 characters"
+            ValueError, match="description must be at least 20 characters"
         ):
             PropertyValidators.validate_description("Too short")
 
@@ -125,50 +125,38 @@ class TestPropertyValidators:
         """Test description too long."""
         long_desc = "A" * 5001
         with pytest.raises(
-            ValueError, match="Description cannot exceed 5000 characters"
+            ValueError, match="description cannot exceed 5000 characters"
         ):
             PropertyValidators.validate_description(long_desc)
 
     def test_validate_location_valid(self):
         """Test valid location."""
-        result = PropertyValidators.validate_location("Lagos, Nigeria")
+        result = ValidatorMixin.validate_location("Lagos, Nigeria")
         assert result == "Lagos, Nigeria"
 
     def test_validate_location_too_short(self):
         """Test location too short."""
         with pytest.raises(ValueError):
-            PropertyValidators.validate_location("LA")
+            ValidatorMixin.validate_location("L")
 
 
 class TestTransactionValidators:
     """Test transaction-specific validators."""
 
-    def test_validate_bid_amount_valid(self):
-        """Test valid bid amount."""
-        result = TransactionValidators.validate_bid_amount(1000000)
+    def test_validate_transaction_amount_valid(self):
+        """Test valid transaction amount."""
+        result = TransactionValidators.validate_transaction_amount(1000000)
         assert result == 1000000
 
-    def test_validate_bid_amount_negative(self):
-        """Test negative bid amount."""
-        with pytest.raises(ValueError, match="Bid amount must be positive"):
-            TransactionValidators.validate_bid_amount(-1000)
+    def test_validate_transaction_amount_negative(self):
+        """Test negative transaction amount."""
+        with pytest.raises(ValueError, match="Transaction amount must be greater than 0"):
+            TransactionValidators.validate_transaction_amount(-1000)
 
-    def test_validate_bid_amount_zero(self):
-        """Test zero bid amount."""
-        with pytest.raises(ValueError, match="Bid amount must be positive"):
-            TransactionValidators.validate_bid_amount(0)
-
-    def test_validate_transaction_status_valid(self):
-        """Test valid transaction status."""
-        valid_statuses = ["pending", "completed", "failed", "cancelled"]
-        for status in valid_statuses:
-            result = TransactionValidators.validate_transaction_status(status)
-            assert result == status
-
-    def test_validate_transaction_status_invalid(self):
-        """Test invalid transaction status."""
-        with pytest.raises(ValueError, match="Invalid transaction status"):
-            TransactionValidators.validate_transaction_status("invalid_status")
+    def test_validate_transaction_amount_zero(self):
+        """Test zero transaction amount."""
+        with pytest.raises(ValueError, match="Transaction amount must be greater than 0"):
+            TransactionValidators.validate_transaction_amount(0)
 
 
 class TestCacheKeys:

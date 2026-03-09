@@ -145,36 +145,36 @@ except ImportError:
 )
 async def search_properties(
     query: str = Query(..., min_length=1, description="Search query"),
-    min_price: Annotated[int, Query(None, description="Minimum price")] = None,
-    max_price: Annotated[int, Query(None, description="Maximum price")] = None,
-    location: Annotated[str, Query(None, description="Location filter")] = None,
-    property_type: Annotated[str, Query(None, description="Property type")] = None,
+    min_price: Annotated[int, Query(description="Minimum price")] = None,
+    max_price: Annotated[int, Query(description="Maximum price")] = None,
+    location: Annotated[str, Query(description="Location filter")] = None,
+    property_type: Annotated[str, Query(description="Property type")] = None,
     listing_type: Annotated[
-        str, Query(None, description="Listing type (rent/sell)")
+        str, Query(description="Listing type (rent/sell)")
     ] = None,
     min_bedroom: Annotated[
-        int, Query(None, ge=1, description="Minimum bedrooms")
+        int, Query(ge=1, description="Minimum bedrooms")
     ] = None,
     max_bedroom: Annotated[
-        int, Query(None, ge=1, description="Maximum bedrooms")
+        int, Query(ge=1, description="Maximum bedrooms")
     ] = None,
     min_bathroom: Annotated[
-        int, Query(None, ge=1, description="Minimum bathrooms")
+        int, Query(ge=1, description="Minimum bathrooms")
     ] = None,
     max_bathroom: Annotated[
-        int, Query(None, ge=1, description="Maximum bathrooms")
+        int, Query(ge=1, description="Maximum bathrooms")
     ] = None,
     furnished: Annotated[
-        bool, Query(None, description="Furnished properties only")
+        bool, Query(description="Furnished properties only")
     ] = None,
     amenities: Annotated[
-        List[str], Query(None, description="Required amenities")
+        List[str], Query(description="Required amenities")
     ] = None,
     sort: Annotated[
-        str, Query("MOST_RELEVANT", description="Sort order")
+        str, Query(description="Sort order")
     ] = "MOST_RELEVANT",
-    limit: Annotated[int, Query(20, ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(0, ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
     """
     Search properties using Elasticsearch full-text search.

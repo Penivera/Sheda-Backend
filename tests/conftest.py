@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
 
 from main import app
-from app.models import Base
-from core.database import get_db, AsyncSessionLocal
-from app.models.user import User
+from core.database import Base, get_db, AsyncSessionLocal
+from app.models.user import BaseUser as User, Client
 from app.models.property import Property
+from app.utils.enums import AccountTypeEnum
 
 # Use in-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -82,12 +82,13 @@ async def async_client(override_get_db) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture(scope="function")
 async def test_user(db: AsyncSession) -> User:
     """Create test user."""
-    user = User(
+    user = Client(
         email="test@example.com",
-        first_name="Test",
-        last_name="User",
-        hashed_password="hashed_password_here",
-        is_verified=True,
+        fullname="Test User",
+        username="test_user",
+        password="hashed_password_here",
+        verified=True,
+        account_type=AccountTypeEnum.client,
     )
     db.add(user)
     await db.commit()

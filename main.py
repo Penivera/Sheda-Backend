@@ -1,6 +1,9 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from fastapi.exceptions import HTTPException
 from app.routers import (
     auth,
     listing,
@@ -17,10 +20,18 @@ from app.routers import (
 )
 
 try:
-    from app.routers import notifications_enhanced, transactions_enhanced, health
+    from app.routers import notifications_enhanced
 except ImportError:
     notifications_enhanced = None
+
+try:
+    from app.routers import transactions_enhanced
+except ImportError:
     transactions_enhanced = None
+
+try:
+    from app.routers import health
+except ImportError:
     health = None
 from core.starter import lifespan
 from core.configs import settings
@@ -36,6 +47,9 @@ from slowapi.errors import RateLimitExceeded
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory=os.path.join(settings.BASE_DIR, "templates"))
 
 
 def create_app() -> FastAPI:
@@ -112,6 +126,13 @@ def create_app() -> FastAPI:
 
     # NOTE - Register rate limit exceeded handler
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+    # NOTE - Custom 404 handler
+    @app.exception_handler(404)
+    async def custom_404_handler(request: Request, exc: HTTPException):
+        return templates.TemplateResponse(
+            "404.html", {"request": request}, status_code=404
+        )
 
     # NOTE - Mount Starlette Admin
     admin.mount_to(app)
