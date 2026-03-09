@@ -4,7 +4,8 @@ from fastapi import status, HTTPException, BackgroundTasks
 from sqlalchemy.future import select
 from email_validator import validate_email, EmailNotValidError
 import re
-from app.schemas.auth_schema import LoginData, Token, TokenData, SignUpShow
+from app.schemas.auth_schema import LoginData, Token, TokenData, SignUpShow, SocialLoginRequest
+
 from app.schemas.user_schema import UserInDB, UserCreate, UserShow
 from app.utils.utils import verify_password
 from app.utils.email import create_send_otp
@@ -14,6 +15,13 @@ from core.dependecies import DBSession
 from core.logger import logger
 import jwt
 from sqlalchemy.exc import IntegrityError
+from app.schemas.user_schema import BaseUserSchema
+from app.utils.utils import blacklist_token, token_exp_time, generate_random_password
+from app.utils.enums import AccountTypeEnum
+from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_auth_requests
+from app.schemas.auth_schema import SocialLoginRequest
 from app.schemas.user_schema import BaseUserSchema
 from app.utils.utils import blacklist_token, token_exp_time
 from app.utils.enums import AccountTypeEnum
@@ -123,6 +131,69 @@ async def process_signup(
         token=Token(access_token=access_token),
         user_data=UserShow.model_validate(new_user),
     )
+
+
+async def process_social_login(
+    payload: SocialLoginRequest, db: AsyncSession, background_tasks: BackgroundTasks
+):
+    try:
+        # Verify Google token
+        idinfo = id_token.verify_oauth2_token(
+            payload.token, google_auth_requests.Request(), settings.GOOGLE_CLIENT_ID
+        )
+        email = idinfo.get("email")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="No email provided in token"
+            )
+        
+        # Check if user exists
+        try:
+            user = await get_user(email, db, AccountTypeEnum.client)
+            # If user exists but is not verified, verify them now
+            if not user.verified:
+                user.verified = True
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+        except HTTPException:
+            # User doesn't exist, create account
+            username = idinfo.get("name") or idinfo.get("given_name") or email.split("@")[0]
+            username = "".join(e for e in username if e.isalnum())[:30]
+            if not username:
+                username = "User"
+            
+            user_data = UserCreate(
+                username=username,
+                email=email,
+                password=generate_random_password()
+            )
+            
+            user = await create_account(user_data, db)
+            user.verified = True
+            
+            # update avatar_url if available
+            picture = idinfo.get("picture")
+            if picture:
+                user.avatar_url = picture
+                
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            
+        token_data = TokenData(sub=user.id, scopes=[AccountTypeEnum.client.value])
+        access_token = await create_access_token(data=token_data)
+        
+        return SignUpShow(
+            token=Token(access_token=access_token),
+            user_data=UserShow.model_validate(user),
+        )
+            
+    except ValueError as e:
+        logger.error(f"Social login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid social token"
+        )
 
 
 async def process_logout(token: str):

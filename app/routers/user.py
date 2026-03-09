@@ -280,9 +280,9 @@ async def start_kyc_verification(
     email: str,
     first_name: str,
     last_name: str,
+    current_user: ActiveUser,
+    db: DBSession,
     phone_number: Optional[str] = None,
-    current_user: ActiveUser = Depends(get_current_user),
-    db: DBSession = Depends(get_db),
 ):
     """
     Start KYC (Know Your Customer) verification process.
@@ -344,7 +344,8 @@ async def start_kyc_verification(
 @router.get("/kyc/status/{verification_id}")
 async def get_kyc_status(
     verification_id: str,
-    current_user: ActiveUser = Depends(get_current_user),
+    current_user: ActiveUser,
+    db:DBSession
 ):
     """
     Check KYC verification status.
@@ -381,6 +382,12 @@ async def get_kyc_status(
                 "status": status_result.get("status"),
             },
         )
+        
+        from app.utils.enums import KycStatusEnum
+        if status_result.get("status")=="verified":
+            current_user.kyc_status = KycStatusEnum.verified
+            await db.commit()
+            
 
         return {
             "id": status_result.get("id"),
@@ -401,7 +408,7 @@ async def get_kyc_status(
 @router.get("/kyc/is-verified/{user_id}")
 async def is_user_verified(
     user_id: int,
-    current_user: ActiveUser = Depends(get_current_user),
+    current_user: ActiveUser,
 ):
     """
     Check if a user has passed KYC verification.
@@ -426,8 +433,8 @@ async def is_user_verified(
 
         return {
             "user_id": user_id,
-            "is_verified": False,  # Query DB for actual status
-            "verification_status": "pending",
+            "is_verified": current_user.verified,  # Query DB for actual status
+            "verification_status": current_user.kyc_status,
         }
 
     except Exception as e:

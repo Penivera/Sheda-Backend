@@ -54,17 +54,19 @@ RATE_LIMITS = {
 }
 
 
-class RateLimitMiddleware:
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
     """Custom rate limiting middleware with advanced features."""
 
     def __init__(self, app):
         """Initialize rate limit middleware."""
-        self.app = app
+        super().__init__(app)
         self.limiter = limiter
         self.whitelist = set()  # IPs to whitelist from rate limiting
         self.blacklist = set()  # IPs to block immediately
 
-    async def __call__(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process request through rate limiting.
 

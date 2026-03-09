@@ -5,6 +5,7 @@ Provides centralized error handling with proper logging and error tracking.
 
 import traceback
 import uuid
+import logging
 from typing import Callable, Optional, Dict, Any
 from datetime import datetime
 

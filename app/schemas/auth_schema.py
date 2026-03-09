@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, BeforeValidator,AfterValidator
 from app.utils.enums import PhoneStr, AccountTypeEnum
-from typing import Union, Optional, Annotated
+from typing import Union, Optional, Annotated, Literal
 from app.utils.utils import hash_password
 from typing import List
 
@@ -55,3 +55,8 @@ class ForgotPasswordVerifyRequest(BaseModel):
 
 class ForgotPasswordResetRequest(BaseModel):
     email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]
+
+
+class SocialLoginRequest(BaseModel):
+    token: str
+    provider: Literal["google"] = "google"
