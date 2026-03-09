@@ -6,9 +6,7 @@ set -e
 # Run database migrations
 echo "Running database migrations..."
 
-alembic upgrade head > /dev/null 2>&1 || {
-    echo "⚠ alembic.ini not found, skipping migrations"
-}
+alembic upgrade head 
 
 # Start the application with Gunicorn
 # Adjust workers/bind address as needed via environment variables or defaults
