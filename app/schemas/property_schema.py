@@ -1,8 +1,9 @@
-from pydantic import BaseModel, AnyUrl, Field
+from pydantic import BaseModel, AnyUrl, Field, field_validator
 from typing import List, Union, Annotated, Optional
 from app.utils.enums import ListingTypeEnum, PropertyTypeEnum, PropertyStatEnum
 from datetime import datetime, time
 from app.utils.enums import AppointmentStatEnum
+from app.utils.validators import PropertyValidators, ValidatorMixin
 
 
 class PropertyImage(BaseModel):
@@ -44,6 +45,69 @@ class PropertyBase(BaseModel):
 
     class Config:
         from_attributes = True
+
+    # Validators
+    @field_validator("title")
+    @classmethod
+    def validate_title_field(cls, v: str) -> str:
+        """Validate title field."""
+        return PropertyValidators.validate_title(v)
+
+    @field_validator("description")
+    @classmethod
+    def validate_description_field(cls, v: Optional[str]) -> Optional[str]:
+        """Validate description field."""
+        if v is not None:
+            return PropertyValidators.validate_description(v)
+        return v
+
+    @field_validator("price")
+    @classmethod
+    def validate_price_field(cls, v: float) -> float:
+        """Validate price for U128 compatibility."""
+        return PropertyValidators.validate_price_field(v)
+
+    @field_validator("location")
+    @classmethod
+    def validate_location_field(cls, v: str) -> str:
+        """Validate location."""
+        return ValidatorMixin.validate_location(v)
+
+    @field_validator("bedroom")
+    @classmethod
+    def validate_bedroom_field(cls, v: int) -> int:
+        """Validate bedroom count."""
+        return ValidatorMixin.validate_bedroom_count(v)
+
+    @field_validator("bathroom")
+    @classmethod
+    def validate_bathroom_field(cls, v: int) -> int:
+        """Validate bathroom count."""
+        return ValidatorMixin.validate_bathroom_count(v)
+
+    @field_validator("blockchain_property_id")
+    @classmethod
+    def validate_blockchain_property_id_field(cls, v: Optional[str]) -> Optional[str]:
+        """Validate blockchain property ID if provided."""
+        if v is not None:
+            return ValidatorMixin.validate_ethereum_address(v)
+        return v
+
+    @field_validator("blockchain_owner_id")
+    @classmethod
+    def validate_blockchain_owner_id_field(cls, v: Optional[str]) -> Optional[str]:
+        """Validate blockchain owner ID if provided."""
+        if v is not None:
+            return ValidatorMixin.validate_ethereum_address(v)
+        return v
+
+    @field_validator("transaction_hash")
+    @classmethod
+    def validate_transaction_hash_field(cls, v: Optional[str]) -> Optional[str]:
+        """Validate transaction hash if provided."""
+        if v is not None:
+            return ValidatorMixin.validate_blockchain_hash(v)
+        return v
 
 
 class PropertyShow(PropertyBase):
@@ -100,7 +164,9 @@ class DeleteProperty(BaseModel):
 
 
 class AgentAvailabilitySchema(BaseModel):
-    weekday: Annotated[str, Field(..., examples=["MONDAY"])]  # Store as uppercase string
+    weekday: Annotated[
+        str, Field(..., examples=["MONDAY"])
+    ]  # Store as uppercase string
     start_time: Annotated[
         time, Field(..., examples=["09:00"], description="HH:MM format")
     ]  # HH:MM format
@@ -131,9 +197,9 @@ class AppointmentShow(BaseModel):
     status: AppointmentStatEnum
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
-        from_attributes= True
+        from_attributes = True
 
 
 class ContractInDB(BaseModel):

@@ -359,3 +359,65 @@ async def websocket_chat(
 
     except WebSocketDisconnect:
         ws_manager.disconnect(current_user.id)
+
+
+@router.websocket("/notifications/{user_id}")
+async def websocket_notifications(websocket: WebSocket, user_id: int):
+    """
+    WebSocket endpoint for real-time notifications.
+
+    Connects to the WebSocket and listens for incoming notification events.
+    The user_id should match the authenticated user making the connection.
+
+    ## Message Types:
+    - **notification**: Real-time notification (bid, payment, KYC, etc.)
+    - **chat_message**: New chat message alert
+    - **status_update**: Property or contract status change
+    - **pong**: Server response to ping (keep-alive)
+
+    ## Example Client Connection (JavaScript):
+    ```javascript
+    const ws = new WebSocket('ws://localhost:8000/ws/notifications/123');
+    ws.onopen = () => console.log('Connected');
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Notification:', data);
+    };
+    ws.send(JSON.stringify({type: 'ping'}));
+    ```
+    """
+    try:
+        await websocket.accept()
+        ws_manager.connect(websocket, user_id)
+        logger.info(f"Notification WebSocket connected: user_id={user_id}")
+
+        # Send connection confirmation
+        await websocket.send_json(
+            {
+                "type": "connected",
+                "user_id": user_id,
+                "message": "WebSocket connection established",
+            }
+        )
+
+        # Listen for incoming messages (e.g., pings)
+        while True:
+            try:
+                data = await websocket.receive_json()
+
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif data.get("type") == "subscribe":
+                    # Handle subscription to specific notification types
+                    notification_type = data.get("notification_type")
+                    logger.info(f"User {user_id} subscribed to {notification_type}")
+
+            except Exception as e:
+                logger.error(f"Error reading message from notification WebSocket: {e}")
+                break
+
+    except Exception as e:
+        logger.error(f"Notification WebSocket error: {e}")
+    finally:
+        ws_manager.disconnect(user_id)
+        logger.info(f"Notification WebSocket disconnected: user_id={user_id}")

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, status, Query
+from fastapi import APIRouter, status, Query, Depends, HTTPException
 from app.models.user import BaseUser
 from app.services.user_service import (
     ActiveUser,
     ActiveVerifiedClient,
     ActiveAgent,
     ActiveVerifiedUser,
+    get_current_user,
 )
 from app.services.profile import (
     update_user,
@@ -13,7 +14,7 @@ from app.services.profile import (
     update_account_info,
     run_account_info_deletion,
 )
-from core.dependecies import DBSession
+from core.dependecies import DBSession, get_db
 from app.schemas.user_schema import (
     UserShow,
     UserUpdate,
@@ -261,3 +262,184 @@ async def confirm_appointment(
     appointment_id: int, current_user: ActiveAgent, db: DBSession
 ):
     return await confirm_agent_appointment(appointment_id, current_user, db)
+
+
+# KYC Integration Endpoints (Phase 2)
+
+try:
+    from app.services.kyc import get_kyc_service
+    from core.logger import logger
+
+    KYC_AVAILABLE = True
+except ImportError:
+    KYC_AVAILABLE = False
+
+
+@router.post("/kyc/start-verification")
+async def start_kyc_verification(
+    email: str,
+    first_name: str,
+    last_name: str,
+    current_user: ActiveUser,
+    db: DBSession,
+    phone_number: Optional[str] = None,
+):
+    """
+    Start KYC (Know Your Customer) verification process.
+
+    Args:
+        email: User's email
+        first_name: First name
+        last_name: Last name
+        phone_number: Phone number (optional)
+        current_user: Authenticated user
+
+    Returns:
+        {
+            "verification_id": "...",
+            "redirect_url": "...",
+            "status": "pending"
+        }
+    """
+    if not KYC_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="KYC service not available",
+        )
+
+    try:
+        service = await get_kyc_service()
+
+        verification = await service.create_verification(
+            user_id=current_user.id,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            phone_number=phone_number,
+        )
+
+        logger.info(
+            f"KYC verification started",
+            extra={
+                "user_id": current_user.id,
+                "verification_id": verification.get("id"),
+            },
+        )
+
+        return {
+            "verification_id": verification.get("id"),
+            "redirect_url": verification.get("attributes", {}).get("redirect-url"),
+            "status": "pending",
+            "user_id": current_user.id,
+        }
+
+    except Exception as e:
+        logger.error(f"Error starting KYC verification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start KYC verification",
+        )
+
+
+@router.get("/kyc/status/{verification_id}")
+async def get_kyc_status(
+    verification_id: str,
+    current_user: ActiveUser,
+    db:DBSession
+):
+    """
+    Check KYC verification status.
+
+    Args:
+        verification_id: ID of verification inquiry
+        current_user: Authenticated user
+
+    Returns:
+        {
+            "id": "...",
+            "status": "pending|approved|declined",
+            "created_at": "2025-02-18T...",
+            "completed_at": "2025-02-18T...",
+            "reason": "..." // if rejected
+        }
+    """
+    if not KYC_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="KYC service not available",
+        )
+
+    try:
+        service = await get_kyc_service()
+
+        status_result = await service.get_verification_status(verification_id)
+
+        logger.info(
+            f"KYC status checked",
+            extra={
+                "user_id": current_user.id,
+                "verification_id": verification_id,
+                "status": status_result.get("status"),
+            },
+        )
+        
+        from app.utils.enums import KycStatusEnum
+        if status_result.get("status")=="verified":
+            current_user.kyc_status = KycStatusEnum.verified
+            await db.commit()
+            
+
+        return {
+            "id": status_result.get("id"),
+            "status": status_result.get("status"),
+            "created_at": status_result.get("created_at"),
+            "completed_at": status_result.get("completed_at"),
+            "reason": status_result.get("reason"),
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking KYC status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check KYC status",
+        )
+
+
+@router.get("/kyc/is-verified/{user_id}")
+async def is_user_verified(
+    user_id: int,
+    current_user: ActiveUser,
+):
+    """
+    Check if a user has passed KYC verification.
+
+    Args:
+        user_id: User to check
+        current_user: Authenticated user
+
+    Returns:
+        {"user_id": int, "is_verified": bool, "verification_status": "..."}
+    """
+    if not KYC_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="KYC service not available",
+        )
+
+    try:
+        # TODO: Query database for user's KYC status
+        # For now, returning placeholder
+        logger.info(f"KYC verification check for user {user_id}")
+
+        return {
+            "user_id": user_id,
+            "is_verified": current_user.verified,  # Query DB for actual status
+            "verification_status": current_user.kyc_status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking user verification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check verification status",
+        )
