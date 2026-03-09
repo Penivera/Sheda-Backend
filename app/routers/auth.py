@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, HTTPException, BackgroundTasks
 from app.models.user import BaseUser
 from app.schemas.user_schema import UserCreate, UserInDB
 from app.services.auth import process_signup, process_logout, get_user
-from app.services.auth import authenticate_user, create_access_token, switch_account
+from app.services.auth import authenticate_user, create_access_token, switch_account, process_social_login
 from app.utils.enums import AccountTypeEnum
 from core.dependecies import PassWordRequestForm, VerificationException
 from core.dependecies import DBSession, HTTPBearerDependency
@@ -15,6 +15,7 @@ from app.schemas.auth_schema import (
     TokenData,
     ForgotPasswordVerifyRequest,
     ForgotPasswordResetRequest,
+    SocialLoginRequest,
 )
 from core.configs import settings
 from core.logger import logger
@@ -44,8 +45,19 @@ router = APIRouter(
 async def signup_user(
     request: UserCreate, db: DBSession, background_tasks: BackgroundTasks
 ):
-    # NOTE - Process signup
     return await process_signup(request, db, background_tasks)  # type: ignore # type: ignore
+
+
+@router.post(
+    "/social-login",
+    response_model=SignUpShow,
+    status_code=status.HTTP_200_OK,
+    description="Authenticates a user via a social identity provider (e.g. Google) and returns an access token.",
+)
+async def social_login(
+    payload: SocialLoginRequest, db: DBSession, background_tasks: BackgroundTasks
+):
+    return await process_social_login(payload, db, background_tasks)
 
 
 @router.post(

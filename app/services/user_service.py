@@ -334,9 +334,7 @@ async def get_websocket_user(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="WebSocket auth failed: No token provided",
         )
-        raise HTTPException(
-            status_code=403, detail="WebSocket auth failed: No token provided"
-        )
+        return None
 
     try:
         payload: dict = jwt.decode(
@@ -349,9 +347,7 @@ async def get_websocket_user(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="WebSocket auth failed: No subject in token",
             )
-            raise HTTPException(
-                status_code=403, detail="WebSocket auth failed: No subject in token"
-            )
+            return None
 
         user: UserInDB = await get_user(identifier, db)  # type: ignore
         if not user:
@@ -360,9 +356,7 @@ async def get_websocket_user(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="WebSocket auth failed: User not found",
             )
-            raise HTTPException(
-                status_code=403, detail="WebSocket auth failed: User not found"
-            )
+            return None
 
         logger.info(f"WebSocket auth successful: {user.email}")
 
@@ -372,9 +366,7 @@ async def get_websocket_user(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="WebSocket auth failed: User inactive",
             )
-            raise HTTPException(
-                status_code=403, detail="WebSocket auth failed: User inactive"
-            )
+            return None
 
         if not user.verified:
             logger.warning("WebSocket auth failed: User unverified")
@@ -382,9 +374,7 @@ async def get_websocket_user(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="WebSocket auth failed: User unverified",
             )
-            raise HTTPException(
-                status_code=403, detail="WebSocket auth failed: User unverified"
-            )
+            return None
 
         # Accept connection with subprotocol if token was from protocol header
         if subprotocol:
@@ -397,9 +387,7 @@ async def get_websocket_user(
     except (InvalidTokenError, ExpiredSignatureError) as e:
         logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise HTTPException(
-            status_code=403, detail="WebSocket auth failed: Invalid token"
-        )
+        return None
 
 
 ActiveVerifiedWSUser = Annotated[BaseUser | Client | Agent, Depends(get_websocket_user)]

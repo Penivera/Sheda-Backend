@@ -49,22 +49,19 @@ class Property(Base):
         String,
         nullable=True,
     )
-    transaction_hash:Mapped[str]= mapped_column(
-        String,
-        nullable=True
-    )
-    
-    is_nft_minted:Mapped[bool] = mapped_column(
+    transaction_hash: Mapped[str] = mapped_column(String, nullable=True)
+
+    is_nft_minted: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         nullable=True,
     )
-    
-    blockchain_owner_id:Mapped[str] = mapped_column(
+
+    blockchain_owner_id: Mapped[str] = mapped_column(
         String,
         nullable=True,
     )
-    
+
     price: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -252,6 +249,9 @@ class Contract(Base):
     )  # For rentals
     # NOTE -  Change to True once the agent confirms payment
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True, index=True
+    )  # For idempotency - prevents duplicate contract creation
 
     property = relationship("Property", back_populates="contract", lazy="selectin")
     payment_confirmation = relationship(
@@ -290,6 +290,9 @@ class PaymentConfirmation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
     )
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True, index=True
+    )  # For idempotency - prevents duplicate payment processing
 
     contract = relationship(
         "Contract", back_populates="payment_confirmation", lazy="selectin"
