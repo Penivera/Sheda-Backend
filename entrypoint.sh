@@ -5,8 +5,8 @@ set -e
 
 # Run database migrations
 echo "Running database migrations..."
-
-alembic upgrade head 
+#RUn allembic and stream out[ut to devnull if succesful print success message otherwise print error message
+alembic upgrade head > /dev/null && echo "Database migrations completed successfully." || { echo "Database migrations failed. Check logs for details."; exit 1; }
 
 # Start the application with Gunicorn
 # Adjust workers/bind address as needed via environment variables or defaults
