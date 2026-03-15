@@ -93,21 +93,7 @@ class PropertyBase(BaseModel):
             return ValidatorMixin.validate_ethereum_address(v)
         return v
 
-    @field_validator("blockchain_owner_id")
-    @classmethod
-    def validate_blockchain_owner_id_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate blockchain owner ID if provided."""
-        if v is not None:
-            return ValidatorMixin.validate_ethereum_address(v)
-        return v
-
-    @field_validator("transaction_hash")
-    @classmethod
-    def validate_transaction_hash_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate transaction hash if provided."""
-        if v is not None:
-            return ValidatorMixin.validate_blockchain_hash(v)
-        return v
+    
 
 
 class PropertyShow(PropertyBase):
