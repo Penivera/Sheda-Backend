@@ -95,7 +95,7 @@ class ValidatorMixin:
         return value.strip()
 
     @staticmethod
-    def validate_ethereum_address(value: str) -> str:
+    def validate_near_account_id(value: str) -> str:
         """Validate Ethereum address format (0x followed by 40 hex characters)."""
         if value is None:
             return value
@@ -105,13 +105,14 @@ class ValidatorMixin:
 
         value = value.strip()
 
-        if not re.match(r"^0x[a-fA-F0-9]{40}$", value):
+        if not re.match(r'^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$', value):
             raise ValueError("Invalid Ethereum address format")
 
         return value.lower()
 
     @staticmethod
     def validate_blockchain_hash(value: str) -> str:
+        import base58
         """Validate blockchain transaction hash (0x followed by 64 hex characters)."""
         if value is None:
             return value
@@ -121,10 +122,12 @@ class ValidatorMixin:
 
         value = value.strip()
 
-        if not re.match(r"^0x[a-fA-F0-9]{64}$", value):
-            raise ValueError("Invalid transaction hash format")
+        decoded = base58.b58decode(value)
+        # Standard NEAR hashes (SHA-256) are 32 bytes when decoded
+        if len(decoded)==32:
+            return value
+        raise ValueError
 
-        return value.lower()
 
     @staticmethod
     def validate_uuid(value: str, field_name: str = "value") -> str:
