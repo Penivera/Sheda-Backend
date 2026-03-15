@@ -31,7 +31,7 @@ app.conf.update(
     # Result backend settings
     result_expires=3600,  # 1 hour
     result_backend_transport_options={
-        "master_name": "mymaster",
+        "master_name": "sheda",
         "retry_on_timeout": True,
     },
     # Task execution settings
