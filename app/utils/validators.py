@@ -96,17 +96,17 @@ class ValidatorMixin:
 
     @staticmethod
     def validate_near_account_id(value: str) -> str:
-        """Validate Ethereum address format (0x followed by 40 hex characters)."""
+        """Validate Near Account ID"""
         if value is None:
             return value
 
         if not isinstance(value, str):
-            raise ValueError("Ethereum address must be a string")
+            raise ValueError("Near Account ID must be a string")
 
         value = value.strip()
 
         if not re.match(r'^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$', value):
-            raise ValueError("Invalid Ethereum address format")
+            raise ValueError("Invalid Near Account ID format")
 
         return value.lower()
 
