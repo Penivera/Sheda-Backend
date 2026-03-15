@@ -18,7 +18,7 @@ JWT token is required and can be provided via:
 2. **Sec-WebSocket-Protocol Header** (For WebSocket clients):
    - Format: `Bearer.{jwt_token}`
    - The server will echo back the protocol on successful connection
-   
+
    Example in JavaScript:
    ```javascript
    new WebSocket('ws://host/ws/123', ['Bearer.eyJhbGciOiJIUzI1NiIs...'])
@@ -95,13 +95,13 @@ class WebSocketConnectionManager:
     def connect(self, websocket: WebSocket, user_id: int) -> bool:
         """
         Track a WebSocket connection by user_id.
-        
+
         Note: The WebSocket should already be accepted before calling this method.
-        
+
         Args:
             websocket: The WebSocket connection (already accepted)
             user_id: The authenticated user's ID
-        
+
         Returns True if connection tracking was successful.
         """
         self.active_connections[user_id] = websocket
@@ -161,40 +161,40 @@ ws_manager = WebSocketConnectionManager()
 
 @router.websocket("/chat/{user_id}")
 async def websocket_endpoint(
-    websocket: WebSocket,
-    current_user:ActiveVerifiedWSUser,
-    db: DBSession
+    websocket: WebSocket, current_user: ActiveVerifiedWSUser, db: DBSession
 ):
     """
     WebSocket endpoint for real-time messaging.
 
     ## Authentication
-    
+
     JWT token is required and can be provided via:
-    
+
     1. **Query parameter**: `/ws/{user_id}?token={jwt_token}`
     2. **Sec-WebSocket-Protocol header**: `Bearer.{jwt_token}`
-    
+
     The `user_id` in the URL path must match the authenticated user's ID.
 
     ## Connection Flow
-    
+
     1. Client connects with token (query param or protocol header)
     2. Server validates token and user
     3. Server accepts connection (echoing subprotocol if used)
     4. Server verifies user_id matches authenticated user
-    
+
     ## Error Codes
-    
+
     - `WS_1008_POLICY_VIOLATION`: Authentication failed or user_id mismatch
 
     ## Message Formats
-    
+
     See module docstring for detailed payload schemas.
     """
-   
-    
-    current_user = UserShow.model_validate(current_user) # type: ignore
+
+    if current_user is None:
+        return
+
+    current_user = UserShow.model_validate(current_user)  # type: ignore
 
     # Track the session (connection already accepted by auth)
     ws_manager.connect(websocket, current_user.id)
@@ -211,6 +211,8 @@ async def websocket_endpoint(
             # Wait for incoming messages
             try:
                 data = await websocket.receive_json()
+            except WebSocketDisconnect:
+                raise
             except Exception:
                 await websocket.send_json({"error": "Invalid JSON received"})
                 continue
@@ -271,9 +273,7 @@ async def websocket_endpoint(
 
 @router.websocket("/chat/global-chat")
 async def websocket_chat(
-    websocket: WebSocket,
-    db: DBSession,
-    current_user:ActiveVerifiedWSUser
+    websocket: WebSocket, db: DBSession, current_user: ActiveVerifiedWSUser
 ):
     """
     WebSocket endpoint for chat messaging.
@@ -308,16 +308,17 @@ async def websocket_chat(
     }
     ```
     """
-    
 
     # Track the session (connection already accepted by auth)
-    ws_manager.connect(websocket, current_user.id) # type: ignore
+    ws_manager.connect(websocket, current_user.id)  # type: ignore
     current_user_show = UserShow.model_validate(current_user)
 
     try:
         while True:
             try:
                 data = await websocket.receive_json()
+            except WebSocketDisconnect:
+                raise
             except Exception:
                 await websocket.send_text("Invalid JSON received")
                 continue
@@ -358,3 +359,65 @@ async def websocket_chat(
 
     except WebSocketDisconnect:
         ws_manager.disconnect(current_user.id)
+
+
+@router.websocket("/notifications/{user_id}")
+async def websocket_notifications(websocket: WebSocket, user_id: int):
+    """
+    WebSocket endpoint for real-time notifications.
+
+    Connects to the WebSocket and listens for incoming notification events.
+    The user_id should match the authenticated user making the connection.
+
+    ## Message Types:
+    - **notification**: Real-time notification (bid, payment, KYC, etc.)
+    - **chat_message**: New chat message alert
+    - **status_update**: Property or contract status change
+    - **pong**: Server response to ping (keep-alive)
+
+    ## Example Client Connection (JavaScript):
+    ```javascript
+    const ws = new WebSocket('ws://localhost:8000/ws/notifications/123');
+    ws.onopen = () => console.log('Connected');
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Notification:', data);
+    };
+    ws.send(JSON.stringify({type: 'ping'}));
+    ```
+    """
+    try:
+        await websocket.accept()
+        ws_manager.connect(websocket, user_id)
+        logger.info(f"Notification WebSocket connected: user_id={user_id}")
+
+        # Send connection confirmation
+        await websocket.send_json(
+            {
+                "type": "connected",
+                "user_id": user_id,
+                "message": "WebSocket connection established",
+            }
+        )
+
+        # Listen for incoming messages (e.g., pings)
+        while True:
+            try:
+                data = await websocket.receive_json()
+
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif data.get("type") == "subscribe":
+                    # Handle subscription to specific notification types
+                    notification_type = data.get("notification_type")
+                    logger.info(f"User {user_id} subscribed to {notification_type}")
+
+            except Exception as e:
+                logger.error(f"Error reading message from notification WebSocket: {e}")
+                break
+
+    except Exception as e:
+        logger.error(f"Notification WebSocket error: {e}")
+    finally:
+        ws_manager.disconnect(user_id)
+        logger.info(f"Notification WebSocket disconnected: user_id={user_id}")

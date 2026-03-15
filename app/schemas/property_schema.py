@@ -1,8 +1,9 @@
-from pydantic import BaseModel, AnyUrl, Field
+from pydantic import BaseModel, AnyUrl, Field, field_validator,AfterValidator
 from typing import List, Union, Annotated, Optional
 from app.utils.enums import ListingTypeEnum, PropertyTypeEnum, PropertyStatEnum
 from datetime import datetime, time
 from app.utils.enums import AppointmentStatEnum
+from app.utils.validators import PropertyValidators, ValidatorMixin
 
 
 class PropertyImage(BaseModel):
@@ -19,16 +20,19 @@ class PropertyImage(BaseModel):
 class PropertyBase(BaseModel):
     title: str
     description: str
-    blockchain_property_id: Optional[int] = None
-    location: str
-    price: float
+    blockchain_property_id: Optional[str] = None
+    blockchain_owner_id: Annotated[Optional[str],AfterValidator(ValidatorMixin.validate_near_account_id)] 
+    is_nft_minted: Optional[bool] = False
+    transaction_hash: Annotated[Optional[str],AfterValidator(ValidatorMixin.validate_blockchain_hash)]
+    location: Annotated[str,AfterValidator(ValidatorMixin.validate_location)]
+    price: Annotated[float,AfterValidator(PropertyValidators.validate_price_field)]
     property_type: PropertyTypeEnum
     listing_type: ListingTypeEnum
     status: PropertyStatEnum
     furnished: bool
     is_active: bool
     bathroom: int
-    bedroom: int
+    bedroom: Annotated[int,AfterValidator(ValidatorMixin.validate_bedroom_count)]
     air_condition: bool
     pop_ceiling: bool
     floor_tiles: bool
@@ -47,23 +51,23 @@ class PropertyShow(PropertyBase):
     id: int
     agent_id: int
 
-    class Config:
+    class Config: #type: ignore
         from_attributes = True
 
 
 class PropertyUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    blockchain_property_id: Optional[int] = None
-    location: Optional[str] = None
-    price: Optional[float] = None
+    blockchain_property_id: Optional[str] = None
+    location: Annotated[Optional[str],AfterValidator(ValidatorMixin.validate_location)] = None
+    price: Annotated[Optional[float],AfterValidator(PropertyValidators.validate_price_field)] = None
     property_type: Optional[PropertyTypeEnum] = None
     listing_type: Optional[ListingTypeEnum] = None
     status: Optional[PropertyStatEnum] = None
     furnished: Optional[bool] = None
     is_active: Optional[bool] = None
     bathroom: Optional[int] = None
-    bedroom: Optional[int] = None
+    bedroom: Annotated[Optional[int],AfterValidator(ValidatorMixin.validate_bedroom_count)] = None
     air_condition: Optional[bool] = None
     pop_ceiling: Optional[bool] = None
     floor_tiles: Optional[bool] = None
@@ -97,7 +101,9 @@ class DeleteProperty(BaseModel):
 
 
 class AgentAvailabilitySchema(BaseModel):
-    weekday: Annotated[str, Field(..., examples=["MONDAY"])]  # Store as uppercase string
+    weekday: Annotated[
+        str, Field(..., examples=["MONDAY"])
+    ]  # Store as uppercase string
     start_time: Annotated[
         time, Field(..., examples=["09:00"], description="HH:MM format")
     ]  # HH:MM format
@@ -128,9 +134,9 @@ class AppointmentShow(BaseModel):
     status: AppointmentStatEnum
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
-        from_attributes= True
+        from_attributes = True
 
 
 class ContractInDB(BaseModel):
