@@ -29,10 +29,24 @@ This is the backend for a real estate platform built with **FastAPI**. The platf
   - Secure password hashing
   - Redis for caching and temporary storage
   - CORS handling
+- **Media & IPFS Uploads**
+  - Batch uploads via a single `files` field (send 1 or many files)
+  - Cloudinary uploads for regular media
+  - Pinata v3 IPFS upload support with JWT authentication
+  - Configurable IPFS gateway URL output
 - **Transaction Lifecycle**
   - Aggregated transaction feed
   - Document upload support for agreement NFTs
   - Transaction notifications and audit logs
+
+## Recent Changes (March 2026)
+
+- Added Pinata v3 upload integration for IPFS media uploads.
+- Added support for batch uploads on both media endpoints using one `files` form field.
+- Added configurable `PINATA_GATEWAY_URL` to control returned IPFS links.
+- Hardened Alembic migration chain so fresh/empty databases can upgrade reliably.
+- Added/updated reusable email template structure with `templates/base.html` inheritance.
+- Added custom 404 page with quick links to `/sheda-docs` and `/sheda-backend`.
 
 ## **Tech Stack**
 
@@ -113,6 +127,7 @@ This is the backend system for the real estate application. It handles user auth
 
 - Clients book an appointment with an agent for a property.
 - The agent confirms or rejects the appointment.
+- Appointment requests include a full `requested_time` datetime (ISO 8601), and availability matching uses the weekday and time portion.
 
 ### 4️⃣ **Payment & Contract Flow**
 
@@ -143,11 +158,18 @@ This is the backend system for the real estate application. It handles user auth
 - `PATCH /properties/{id}` – Update property details (**Agent only**).
 - `DELETE /properties/{id}` – Delete a property (**Agent only**).
 
+### **Media**
+
+- `POST /media/file-upload/{type}` – Upload one or many files using form field `files`.
+- `POST /media/ipfs-upload` – Upload one or many files to IPFS using form field `files`.
+
 ### **Appointments**
 
 - `POST /appointments` – Client books an appointment.
 - `PATCH /appointments/{id}/confirm` – Agent confirms appointment.
 - `DELETE /appointments/{id}` – Cancel appointment.
+
+**Payload note:** booking requires `requested_time` as an ISO 8601 datetime (e.g., `2026-02-15T14:30:00Z`).
 
 ### **Payments & Contracts**
 
@@ -164,10 +186,18 @@ This is the backend system for the real estate application. It handles user auth
 
 - `GET /transactions?status=ongoing|completed|cancelled` – Aggregated transaction feed.
 - `POST /transactions/{bid_id}/upload-documents` – Upload agreement documents.
+- `GET /transactions/timeouts` – List timeout candidates for escrow refunds (admin only).
 
 ### **Notifications**
 
 - `POST /notifications/transaction-update` – Store and broadcast transaction updates.
+- `GET /notifications` – List transaction notifications for the current user.
+- `POST /notifications/{id}/read` – Mark a notification as read.
+- `POST /notifications/register-device` – Register a device token for push notifications.
+
+### **Indexer**
+
+- `POST /indexer/transactions` – Ingest blockchain transaction events (admin only).
 
 ### **Users & Wallets**
 

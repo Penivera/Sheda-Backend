@@ -14,6 +14,7 @@ from .chat import ChatMessage
 from .rating import Rating
 from .transaction import (
     WalletMapping,
+    DeviceToken,
     TransactionRecord,
     TransactionNotification,
     TransactionAuditLog,
@@ -37,6 +38,7 @@ __all__ = [
     "ChatMessage",
     "Rating",
     "WalletMapping",
+    "DeviceToken",
     "TransactionRecord",
     "TransactionNotification",
     "TransactionAuditLog",

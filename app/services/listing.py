@@ -20,7 +20,12 @@ from app.schemas.property_schema import (
     AgentAvailabilitySchema,
 )
 from datetime import datetime, timezone, timedelta
-from app.utils.enums import AppointmentStatEnum, PropertyStatEnum, ListingTypeEnum, AccountTypeEnum
+from app.utils.enums import (
+    AppointmentStatEnum,
+    PropertyStatEnum,
+    ListingTypeEnum,
+    AccountTypeEnum,
+)
 from core.logger import logger
 
 
@@ -38,8 +43,15 @@ async def create_property_listing(
     return new_property
 
 
-async def get_user_properties(current_user: UserInDB, filter_query: FilterParams, db: AsyncSession):
-    query = select(Property).where(Property.agent_id == current_user.id ).where(Property.id >= filter_query.cursor).limit(filter_query.limit)
+async def get_user_properties(
+    current_user: UserInDB, filter_query: FilterParams, db: AsyncSession
+):
+    query = (
+        select(Property)
+        .where(Property.agent_id == current_user.id)
+        .where(Property.id >= filter_query.cursor)
+        .limit(filter_query.limit)
+    )
     result: Result = await db.execute(query)
     property = result.scalars().all()
     return property
@@ -58,6 +70,19 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
     Raises:
         HTTPException: If the property is not found.
     """
+    # Try cache first
+    try:
+        from app.services.cache import get_cache_service
+
+        cache = await get_cache_service()
+        cached = await cache.get_property_detail(property_id)
+        if cached:
+            logger.debug(f"Property cache hit", extra={"property_id": property_id})
+            # Reconstruct property from cached dict
+            return Property(**cached)
+    except Exception as e:
+        logger.warning(f"Cache error, falling back to database: {e}")
+
     query = select(Property).where(Property.id == property_id)
     result: Result = await db.execute(query)
     property = result.scalar_one_or_none()
@@ -66,6 +91,26 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Property with id: {property_id} not found",
         )
+
+    # Cache the result
+    try:
+        cache = await get_cache_service()
+        property_dict = {
+            "id": property.id,
+            "title": property.title,
+            "description": property.description,
+            "price": property.price,
+            "location": property.location,
+            "bedroom": property.bedroom,
+            "bathroom": property.bathroom,
+            "property_type": property.property_type,
+            "listing_type": property.listing_type,
+            "agent_id": property.agent_id,
+        }
+        await cache.set_property_detail(property_id, property_dict)
+    except Exception as e:
+        logger.warning(f"Failed to cache property: {e}")
+
     return property
 
 
@@ -98,11 +143,44 @@ async def update_listing(
     db.add(property)
     await db.commit()
     await db.refresh(property)
+
+    # Invalidate caches
+    try:
+        from app.services.cache import get_cache_service
+
+        cache = await get_cache_service()
+        await cache.invalidate_properties()
+        logger.info(
+            f"Property caches invalidated after update",
+            extra={"property_id": property_id},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to invalidate cache: {e}")
+
     return property
 
 
-
 async def filtered_property(filter_query: FilterParams, db: AsyncSession):
+    # Generate cache key from filter params
+    try:
+        from app.services.cache import get_cache_service
+        from app.utils.cache_keys import generate_filter_hash
+
+        cache = await get_cache_service()
+        filters_dict = {
+            "cursor": filter_query.cursor,
+            "limit": filter_query.limit,
+        }
+        filters_hash = generate_filter_hash(filters_dict)
+
+        # Try cache
+        cached = await cache.get_property_feed(page=1, filters_hash=filters_hash)
+        if cached:
+            logger.debug(f"Property feed cache hit", extra={"filters": filters_dict})
+            return PropertyFeed(**cached)
+    except Exception as e:
+        logger.warning(f"Cache error, falling back to database: {e}")
+
     query = (
         select(Property)
         .where(Property.id >= filter_query.cursor)
@@ -111,7 +189,23 @@ async def filtered_property(filter_query: FilterParams, db: AsyncSession):
     result: Result = await db.execute(query)
     properties: Property = result.scalars().all()  # type: ignore
     next_cursor = properties[-1].id + 1 if properties else None
-    return PropertyFeed(data=properties, next_coursor=next_cursor)
+    feed = PropertyFeed(data=properties, next_coursor=next_cursor)
+
+    # Cache the result
+    try:
+        cache = await get_cache_service()
+        await cache.set_property_feed(
+            page=1,
+            filters_hash=filters_hash,
+            feed={
+                "data": [p.__dict__ for p in properties],
+                "next_coursor": next_cursor,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Failed to cache property feed: {e}")
+
+    return feed
 
 
 async def get_agent_by_id(agent_id: int, db: AsyncSession):
@@ -127,15 +221,16 @@ async def get_agent_by_id(agent_id: int, db: AsyncSession):
 
 
 async def delist_property(property_id: int, db: AsyncSession, current_user: UserInDB):
-    logger.info(f"Attempting to delete property id:{property_id} by agent id:{current_user.id}")
+    logger.info(
+        f"Attempting to delete property id:{property_id} by agent id:{current_user.id}"
+    )
     # fetch property directly from user's listings
-    
+
     property: Property = select(Property).where(
         Property.id == property_id, Property.agent_id == current_user.id
     )
     property_result: Result = await db.execute(property)
     property = property_result.scalar_one_or_none()
-    
 
     if not property:
         raise HTTPException(
@@ -249,7 +344,7 @@ async def cancel_appointment_by_id(
     appointment: Appointment = next(
         (
             appointment
-            for appointment in current_user.appointments # type: ignore
+            for appointment in current_user.appointments  # type: ignore
             if appointment.id == appointment_id
         ),
         None,
@@ -356,7 +451,7 @@ async def run_create_contract(
     end_date = None
     if contract_type == ListingTypeEnum.rent:
         end_date = datetime.now(timezone.utc) + timedelta(
-            days=30 * contract_data.rental_period_months # type: ignore
+            days=30 * contract_data.rental_period_months  # type: ignore
         )  # type: ignore
 
     # Create contract
@@ -383,3 +478,41 @@ async def run_create_contract(
     await db.refresh(contract)
 
     return
+
+
+async def confirm_agent_appointment(
+    appointment_id: int, current_user: UserInDB, db: AsyncSession
+):
+    appointment: Appointment = next(
+        (
+            appointment
+            for appointment in current_user.appointments  # type: ignore
+            if appointment.id == appointment_id
+        ),
+        None,
+    )  # type: ignore
+
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
+        )
+
+    # Only the agent assigned to the appointment can confirm it
+    if appointment.agent_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to confirm this appointment",
+        )
+
+    if appointment.status != AppointmentStatEnum.pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot confirm appointment with status {appointment.status}",
+        )
+
+    appointment.status = AppointmentStatEnum.confirmed
+    db.add(appointment)
+    await db.commit()
+    await db.refresh(appointment)
+
+    return {"detail": "Appointment Confirmed", "status": appointment.status}

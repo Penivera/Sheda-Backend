@@ -1,5 +1,6 @@
 from typing import Optional
 
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
@@ -10,6 +11,7 @@ from app.models.user import BaseUser
 from app.schemas.transaction_schema import (
     TransactionCounterpartyInfo,
     TransactionPropertyInfo,
+    TimeoutCandidate,
     TransactionView,
 )
 from app.utils.enums import (
@@ -214,3 +216,34 @@ async def upsert_transaction_from_event(
     await db.commit()
 
     return record
+
+
+async def get_timeout_candidates(
+    docs_release_timeout_hours: int,
+    docs_confirm_timeout_hours: int,
+    db: AsyncSession,
+) -> list[TimeoutCandidate]:
+    now = datetime.now(timezone.utc)
+    accepted_cutoff = now - timedelta(hours=docs_release_timeout_hours)
+    docs_released_cutoff = now - timedelta(hours=docs_confirm_timeout_hours)
+
+    stmt = select(TransactionRecord).where(
+        or_(
+            (TransactionRecord.status == TransactionStatusEnum.accepted)
+            & (TransactionRecord.updated_at <= accepted_cutoff),
+            (TransactionRecord.status == TransactionStatusEnum.docs_released)
+            & (TransactionRecord.updated_at <= docs_released_cutoff),
+        )
+    )
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+
+    return [
+        TimeoutCandidate(
+            transaction_id=record.bid_id,
+            property_id=record.property_id,
+            status=record.status,
+            updated_at=record.updated_at,
+        )
+        for record in records
+    ]

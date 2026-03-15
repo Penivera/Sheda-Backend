@@ -86,16 +86,8 @@ async def link_minted_property_to_listing(
             detail="Wallet does not match minted property owner",
         )
 
-    try:
-        blockchain_property_id = int(minted.blockchain_property_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Minted property id must be numeric",
-        ) from exc
-
     property_payload = payload.property_data.model_copy(
-        update={"blockchain_property_id": blockchain_property_id}
+        update={"blockchain_property_id": minted.blockchain_property_id}
     )
     created_property = await create_property_listing(current_user, property_payload, db)
 

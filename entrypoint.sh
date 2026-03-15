@@ -5,12 +5,13 @@ set -e
 
 # Run database migrations
 echo "Running database migrations..."
-alembic upgrade head
+#RUn allembic and stream out[ut to devnull if succesful print success message otherwise print error message
+alembic upgrade head > /dev/null && echo "Database migrations completed successfully." || { echo "Database migrations failed. Check logs for details."; exit 1; }
 
 # Start the application with Gunicorn
 # Adjust workers/bind address as needed via environment variables or defaults
-WORKERS=${GUNICORN_WORKERS:-4}
+# WORKERS=${GUNICORN_WORKERS:-4}
 BIND_ADDRESS=${BIND_ADDRESS:-0.0.0.0:8000}
 
 echo "Starting application with Gunicorn ($WORKERS workers) on $BIND_ADDRESS..."
-exec gunicorn -w "$WORKERS" -k uvicorn.workers.UvicornWorker main:app --bind "$BIND_ADDRESS"
+exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind "$BIND_ADDRESS"
