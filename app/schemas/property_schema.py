@@ -47,15 +47,6 @@ class PropertyBase(BaseModel):
         from_attributes = True
 
 
-
-
-
-
-
-
-
-
-
 class PropertyShow(PropertyBase):
     id: int
     agent_id: int
