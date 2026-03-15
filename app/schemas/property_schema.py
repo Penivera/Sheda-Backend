@@ -1,4 +1,4 @@
-from pydantic import BaseModel, AnyUrl, Field, field_validator
+from pydantic import BaseModel, AnyUrl, Field, field_validator,AfterValidator
 from typing import List, Union, Annotated, Optional
 from app.utils.enums import ListingTypeEnum, PropertyTypeEnum, PropertyStatEnum
 from datetime import datetime, time
@@ -21,18 +21,18 @@ class PropertyBase(BaseModel):
     title: str
     description: str
     blockchain_property_id: Optional[str] = None
-    blockchain_owner_id: Optional[str] = None
+    blockchain_owner_id: Annotated[Optional[str],AfterValidator(ValidatorMixin.validate_near_account_id)] 
     is_nft_minted: Optional[bool] = False
-    transaction_hash: Optional[str] = None
-    location: str
-    price: float
+    transaction_hash: Annotated[Optional[str],AfterValidator(ValidatorMixin.validate_blockchain_hash)]
+    location: Annotated[str,AfterValidator(ValidatorMixin.validate_location)]
+    price: Annotated[float,AfterValidator(PropertyValidators.validate_price_field)]
     property_type: PropertyTypeEnum
     listing_type: ListingTypeEnum
     status: PropertyStatEnum
     furnished: bool
     is_active: bool
     bathroom: int
-    bedroom: int
+    bedroom: Annotated[int,AfterValidator(ValidatorMixin.validate_bedroom_count)]
     air_condition: bool
     pop_ceiling: bool
     floor_tiles: bool
@@ -46,75 +46,21 @@ class PropertyBase(BaseModel):
     class Config:
         from_attributes = True
 
-    # Validators
-    @field_validator("title")
-    @classmethod
-    def validate_title_field(cls, v: str) -> str:
-        """Validate title field."""
-        return PropertyValidators.validate_title(v)
 
-    @field_validator("description")
-    @classmethod
-    def validate_description_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate description field."""
-        if v is not None:
-            return PropertyValidators.validate_description(v)
-        return v
 
-    @field_validator("price")
-    @classmethod
-    def validate_price_field(cls, v: float) -> float:
-        """Validate price for U128 compatibility."""
-        return PropertyValidators.validate_price_field(v)
 
-    @field_validator("location")
-    @classmethod
-    def validate_location_field(cls, v: str) -> str:
-        """Validate location."""
-        return ValidatorMixin.validate_location(v)
 
-    @field_validator("bedroom")
-    @classmethod
-    def validate_bedroom_field(cls, v: int) -> int:
-        """Validate bedroom count."""
-        return ValidatorMixin.validate_bedroom_count(v)
 
-    @field_validator("bathroom")
-    @classmethod
-    def validate_bathroom_field(cls, v: int) -> int:
-        """Validate bathroom count."""
-        return ValidatorMixin.validate_bathroom_count(v)
 
-    @field_validator("blockchain_property_id")
-    @classmethod
-    def validate_blockchain_property_id_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate blockchain property ID if provided."""
-        if v is not None:
-            return ValidatorMixin.validate_ethereum_address(v)
-        return v
 
-    @field_validator("blockchain_owner_id")
-    @classmethod
-    def validate_blockchain_owner_id_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate blockchain owner ID if provided."""
-        if v is not None:
-            return ValidatorMixin.validate_ethereum_address(v)
-        return v
 
-    @field_validator("transaction_hash")
-    @classmethod
-    def validate_transaction_hash_field(cls, v: Optional[str]) -> Optional[str]:
-        """Validate transaction hash if provided."""
-        if v is not None:
-            return ValidatorMixin.validate_blockchain_hash(v)
-        return v
 
 
 class PropertyShow(PropertyBase):
     id: int
     agent_id: int
 
-    class Config:
+    class Config: #type: ignore
         from_attributes = True
 
 
