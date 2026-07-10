@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.database import Base
-from app.models.user import BaseUser
+from app.models.user import BaseUser, Agent
 from datetime import datetime
 from app.models.user import utc_now
 
