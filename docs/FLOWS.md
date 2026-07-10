@@ -1,6 +1,6 @@
-# Sheda: Bidding and Push Notifications Flow Documentation
+# Sheda: Bidding, WebSockets, and Push Notifications Flow Documentation
 
-This document provides a comprehensive overview of the core workflows in the Sheda backend: the **On-Chain Bidding Flow** and the **Push Notifications Flow**. It describes the lifecycle of each, their database representations, integration points (NEAR Protocol and Firebase Cloud Messaging), and associated background tasks.
+This document provides a comprehensive overview of the core workflows in the Sheda backend: the **On-Chain Bidding Flow**, the **Real-Time WebSockets Flow**, and the **Push Notifications Flow**. It describes the lifecycle of each, their database representations, integration points, and associated background tasks.
 
 ---
 
@@ -87,7 +87,82 @@ The backend (`verify_and_register_bid_tx`):
 
 ---
 
-## 2. Push Notifications Flow
+## 2. Real-Time WebSockets Flow (`ws_manager`)
+
+Sheda incorporates real-time WebSocket communication to deliver instant notifications and chat messages. Connections are authenticated via JSON Web Tokens (JWT) using one of two methods:
+1. **Query Parameter** (Recommended for browsers): `/chat/{user_id}?token={jwt_token}`
+2. **Sec-WebSocket-Protocol Header** (Recommended for WebSocket clients): `Bearer.{jwt_token}`
+
+The connection is managed globally by [ws_manager](file:///home/penivera/Projects/sheda/backend/app/routers/websocket.py#L159), an instance of `WebSocketConnectionManager`.
+
+### WebSocket Endpoints
+
+#### 1. Real-Time Chat: `/chat/{user_id}`
+Handles direct user-to-user messaging.
+* **Incoming Client Payload (Client → Server)**:
+  ```json
+  {
+      "receiver_id": 123,      // Recipient User ID (int)
+      "message": "Hello!",      // Message text content (string)
+      "property_id": 456        // Optional property context ID (int)
+  }
+  ```
+* **Outgoing Message Payload (Server → Recipient User)**:
+  ```json
+  {
+      "id": 1,
+      "sender_info": {
+          "id": 456,
+          "username": "buyer1",
+          "avatar_url": "https://..."
+      },
+      "receiver_id": 123,
+      "message": "Hello!",
+      "created_at": "2026-07-10T16:18:26+01:00",
+      "property_id": 456
+  }
+  ```
+* **Status Confirmation (Server → Sender)**:
+  ```json
+  {
+      "status": "sent",
+      "delivered": true,        // true if recipient is currently online
+      "message_id": 1
+  }
+  ```
+
+#### 2. Real-Time Notifications: `/notifications/{user_id}`
+Used to stream transactional alerts and state updates instantly.
+* **Connection Confirmation Payload**:
+  ```json
+  {
+      "type": "connected",
+      "user_id": 123,
+      "message": "WebSocket connection established"
+  }
+  ```
+* **Bid Placed Event Payload**:
+  When a bid is verified via `/submit-bid-tx`, a real-time event is pushed to the seller (Agent):
+  ```json
+  {
+      "type": "notification",
+      "notification_type": "bid_placed",
+      "title": "New Bid Placed",
+      "message": "A bid of 5000000 has been placed for property 'Lakeview Estate'.",
+      "data": {
+          "bid_id": "99",
+          "property_id": "1",
+          "bid_amount": "5000000",
+          "status": "pending"
+      }
+  }
+  ```
+* **Keep-Alive Pings**:
+  Clients can send `{"type": "ping"}` to receive `{"type": "pong"}` and maintain active sessions.
+
+---
+
+## 3. Push Notifications Flow
 
 Sheda uses **Firebase Cloud Messaging (FCM)** as its primary engine to deliver push alerts to users. It integrates with both direct client requests and background/periodic Celery tasks.
 
@@ -147,12 +222,13 @@ Located in [app/tasks/notifications.py](file:///home/penivera/Projects/sheda/bac
 
 ---
 
-## 3. Reference Files & Routes
+## 4. Reference Files & Routes
 
 | Path | Description |
 | :--- | :--- |
 | [/app/routers/transactions.py](file:///home/penivera/Projects/sheda/backend/app/routers/transactions.py) | Endpoints to submit bid transactions, list history, and upload documents. |
 | [/app/services/transactions.py](file:///home/penivera/Projects/sheda/backend/app/services/transactions.py) | Verification services (NEAR RPC querying and View call matching). |
+| [/app/routers/websocket.py](file:///home/penivera/Projects/sheda/backend/app/routers/websocket.py) | WebSocket connection setup, manager definition, message parsing, and notification channels. |
 | [/app/routers/notifications.py](file:///home/penivera/Projects/sheda/backend/app/routers/notifications.py) | Basic endpoints (registration, list notification history, read statuses). |
 | [/app/routers/notifications_enhanced.py](file:///home/penivera/Projects/sheda/backend/app/routers/notifications_enhanced.py) | Admin endpoints for custom sends and specific transaction templates. |
 | [/app/services/push_notifications.py](file:///home/penivera/Projects/sheda/backend/app/services/push_notifications.py) | Core FCM service implementation and text template dictionary. |
