@@ -97,6 +97,10 @@ app.conf.beat_schedule = {
         "task": "app.tasks.transactions.sync_blockchain_events",
         "schedule": crontab(minute="*/10"),  # Every 10 minutes
     },
+    "expire-contracts": {
+        "task": "app.tasks.transactions.expire_contracts",
+        "schedule": crontab(hour=0, minute=0),  # Daily at midnight
+    },
 }
 
 

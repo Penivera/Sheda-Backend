@@ -23,15 +23,15 @@ def check_payment_timeouts(self):
     Check for payment timeouts and mark contracts accordingly.
     Scheduled every 5 minutes.
     """
-    try:
+    import asyncio
+    
+    async def _run():
         from core.database import AsyncSessionLocal
-        from app.models.property import Contract, PaymentConfirmation
+        from app.models.property import Contract
         from sqlalchemy import select, and_
         from datetime import datetime, timedelta
 
-        session = AsyncSessionLocal()
-
-        try:
+        async with AsyncSessionLocal() as session:
             # Find unconfirmed contracts older than 7 days
             timeout_threshold = datetime.utcnow() - timedelta(days=7)
 
@@ -50,17 +50,71 @@ def check_payment_timeouts(self):
                 task_id=self.request.id,
             )
 
-            # In production, mark these for cleanup or notify users
-            # For now just log
+            return len(timed_out_contracts)
 
-            return {"status": "success", "contracts_checked": len(timed_out_contracts)}
-
-        finally:
-            await session.close()
-
+    try:
+        count = asyncio.run(_run())
+        return {"status": "success", "contracts_checked": count}
     except Exception as e:
         logger.error(
             f"Failed to check payment timeouts: {str(e)}", task_id=self.request.id
+        )
+        raise
+
+
+@app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 3, "countdown": 300},
+    time_limit=600,
+)
+def expire_contracts(self):
+    """
+    Check for expired contracts and deactivate them.
+    Scheduled daily.
+    """
+    import asyncio
+    
+    async def _run():
+        from core.database import AsyncSessionLocal
+        from app.models.property import Contract, Property
+        from app.utils.enums import PropertyStatEnum
+        from sqlalchemy import select
+        from datetime import datetime, timezone
+
+        async with AsyncSessionLocal() as db:
+            now = datetime.now(timezone.utc)
+
+            # Fetch expired contracts
+            stmt = select(Contract).where(
+                Contract.end_date <= now,
+                Contract.is_active == True,
+            )
+            result = await db.execute(stmt)
+            expired_contracts = result.scalars().all()
+
+            for contract in expired_contracts:
+                contract.is_active = False
+
+                # Reset property status
+                stmt = select(Property).where(Property.id == contract.property_id)
+                property_result = await db.execute(stmt)
+                property_obj = property_result.scalar_one_or_none()
+
+                if property_obj:
+                    property_obj.status = PropertyStatEnum.available
+
+            await db.commit()
+            logger.info(f"Deactivated {len(expired_contracts)} expired contracts and reset property statuses.")
+            return len(expired_contracts)
+
+    try:
+        count = asyncio.run(_run())
+        return {"status": "success", "contracts_expired": count}
+    except Exception as e:
+        logger.error(
+            f"Failed to check and deactivate expired contracts: {str(e)}",
+            task_id=self.request.id,
         )
         raise
 

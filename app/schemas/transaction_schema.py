@@ -103,3 +103,15 @@ class ConfirmPaymentRequest(BaseModel):
         if v is not None:
             return ValidatorMixin.validate_blockchain_hash(v)
         return v
+
+
+class SubmitBidTxRequest(BaseModel):
+    tx_hash: str
+    expected_bid_id: Optional[int] = None
+    expected_property_id: Optional[int] = None
+    expected_amount: Optional[int] = None
+
+
+class SubmitBidTxResponse(BaseModel):
+    status: str = "success"
+    transaction: TransactionView

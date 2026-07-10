@@ -24,6 +24,7 @@ async def seed_superadmin() -> None:
     """
     username = settings.ADMIN_SEED_USERNAME
     password = settings.ADMIN_SEED_PASSWORD
+    print(len(password.encode("utf-8")))
 
     explicitly_enabled = settings.ADMIN_SEED_ENABLED
     implicitly_enabled = not explicitly_enabled and bool(username) and bool(password)
@@ -54,6 +55,8 @@ async def seed_superadmin() -> None:
             existing.password = hash_password(password)
             if not existing.email:
                 existing.email = email
+            if not existing.near_account_id:
+                existing.near_account_id = f"{username.lower()}.testnet"
             await session.commit()
             return
 
@@ -62,6 +65,7 @@ async def seed_superadmin() -> None:
             email=email,
             password=hash_password(password),
             is_superuser=True,
+            near_account_id=f"{username.lower()}.testnet",
         )
         session.add(admin)
         await session.commit()

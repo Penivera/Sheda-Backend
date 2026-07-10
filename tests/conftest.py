@@ -89,6 +89,7 @@ async def test_user(db: AsyncSession) -> User:
         password="hashed_password_here",
         verified=True,
         account_type=AccountTypeEnum.client,
+        near_account_id="test_user.testnet",
     )
     db.add(user)
     await db.commit()

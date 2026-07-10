@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.transaction import DeviceToken, TransactionNotification
+from app.models.transaction import TransactionNotification
 from app.schemas.notification_schema import (
     DeviceTokenRequest,
     TransactionNotificationRequest,
@@ -45,29 +45,19 @@ async def create_transaction_notification(
 
 async def register_device_token(
     payload: DeviceTokenRequest, user_id: int, db: AsyncSession
-) -> DeviceToken:
-    existing = await db.execute(
-        select(DeviceToken).where(DeviceToken.device_token == payload.device_token)
-    )
-    token = existing.scalar_one_or_none()
-    if token:
-        if token.user_id != user_id:
-            token.user_id = user_id
-        token.platform = payload.platform
-        db.add(token)
-        await db.commit()
-        await db.refresh(token)
-        return token
-
-    token = DeviceToken(
-        user_id=user_id,
-        device_token=payload.device_token,
-        platform=payload.platform,
-    )
-    db.add(token)
+) -> BaseUser:
+    from app.models.user import BaseUser
+    result = await db.execute(select(BaseUser).where(BaseUser.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.device_token = payload.device_token
+    db.add(user)
     await db.commit()
-    await db.refresh(token)
-    return token
+    await db.refresh(user)
+    return user
 
 
 async def list_notifications(
