@@ -11,10 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate
 from jinja2 import Environment
-import logging
 import os
-
-logger = logging.getLogger(__name__)
 
 
 def render_template(env: Environment, template_name: str, **context) -> str:

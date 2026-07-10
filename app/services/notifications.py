@@ -2,12 +2,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import TransactionNotification
+from app.models.user import BaseUser
 from app.schemas.notification_schema import (
     DeviceTokenRequest,
     TransactionNotificationRequest,
 )
 from app.services.transactions import upsert_transaction_from_event
 from app.services.push import send_push_notification
+
 
 
 async def create_transaction_notification(
@@ -46,7 +48,6 @@ async def create_transaction_notification(
 async def register_device_token(
     payload: DeviceTokenRequest, user_id: int, db: AsyncSession
 ) -> BaseUser:
-    from app.models.user import BaseUser
     result = await db.execute(select(BaseUser).where(BaseUser.id == user_id))
     user = result.scalar_one_or_none()
     if not user:

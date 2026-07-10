@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
+from core.logger import logger
 
 from app.models.property import Property
 from app.models.transaction import TransactionAuditLog, TransactionRecord, WalletMapping
