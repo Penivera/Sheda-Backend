@@ -95,6 +95,17 @@ class BaseUser(Base):
     )
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    device_token: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )
+    near_account_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
     account_info = relationship(
         "AccountInfo",
         back_populates="user",
@@ -122,6 +133,7 @@ class BaseUser(Base):
     __table_args__ = (
         UniqueConstraint("email", "account_type", name="uq_email_type"),
         UniqueConstraint("username", "account_type", name="uq_username_type"),
+        UniqueConstraint("near_account_id", "account_type", name="uq_near_account_id_type"),
         CheckConstraint(
             f"account_type IN {tuple(item.value for item in AccountTypeEnum)}",
             name="check_account_type",

@@ -33,6 +33,7 @@ class UserCreate(BaseModel):
     username: Annotated[str, Field(example="Admin", max_length=30)] = None  # type: ignore
     email: Annotated[EmailStr, Field(examples=["penivera655@gmail.com"])]
     password: Annotated[str, BeforeValidator(hash_password), Field(examples=["admin"])]
+    near_account_id: Annotated[str, Field(example="user.testnet", max_length=255)]
 
 
 class AccountInfoBase(BaseModel):
@@ -53,6 +54,8 @@ class AccountInfoShow(AccountInfoBase):
 
 class UserShow(BaseUserSchema):
     id: int
+    near_account_id: Optional[str] = None
+    device_token: Optional[str] = None
     agency_name: Optional[str] = None
     is_active: Optional[bool] = None
     is_deleted: Optional[bool] = None

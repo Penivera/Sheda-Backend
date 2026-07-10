@@ -123,7 +123,7 @@ class ValidationError(ShedaException):
         self, detail: str = "Validation failed", data: Optional[Dict[str, Any]] = None
     ):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=detail,
             error_code="VAL_001",
             data=data,
@@ -135,7 +135,7 @@ class InvalidInputError(ShedaException):
 
     def __init__(self, field: str, detail: str = "Invalid input"):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{detail} for field '{field}'",
             error_code="VAL_002",
             data={"field": field},
@@ -147,7 +147,7 @@ class BusinessLogicError(ShedaException):
 
     def __init__(self, detail: str = "Business logic validation failed"):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=detail,
             error_code="VAL_003",
         )

@@ -13,6 +13,7 @@ async def test_create_suer(db: AsyncSession):
         username="Admin",
         email="penivera655@gmail.com",
         password=settings.pwd_context.hash("admin"),
+        near_account_id="admin_agent.testnet",
     )
     db.add(new_user_1)
     await db.commit()
@@ -21,6 +22,7 @@ async def test_create_suer(db: AsyncSession):
         username="Admin",
         email="penivera655@gmail.com",
         password=settings.pwd_context.hash("admin"),
+        near_account_id="admin_client.testnet",
     )
     db.add(new_user)
     await db.commit()

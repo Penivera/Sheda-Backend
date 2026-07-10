@@ -163,10 +163,12 @@ async def process_social_login(
             if not username:
                 username = "User"
             
+            import uuid
             user_data = UserCreate(
                 username=username,
                 email=email,
-                password=generate_random_password()
+                password=generate_random_password(),
+                near_account_id=f"{username.lower()}-{uuid.uuid4().hex[:6]}.testnet"
             )
             
             user = await create_account(user_data, db)

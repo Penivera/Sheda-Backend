@@ -182,6 +182,9 @@ class Settings(BaseSettings):
         "reset_password": "reset_password.txt",
     }
 
+    #Blockchain
+    NEAR_RPC_URL:str = Field(default="https://rpc.testnet.near.org ",description="Near RPC URl")
+
     # Computed properties
     @property
     def expire_delta(self) -> timedelta:

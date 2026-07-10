@@ -247,3 +247,301 @@ async def get_timeout_candidates(
         )
         for record in records
     ]
+
+
+async def verify_and_register_bid_tx(
+    tx_hash: str,
+    expected_bid_id: Optional[int],
+    expected_property_id: Optional[int],
+    expected_amount: Optional[int],
+    current_user: BaseUser,
+    db: AsyncSession,
+) -> TransactionRecord:
+    import httpx
+    import base64
+    import json
+    from fastapi import HTTPException, status
+    from core.configs import settings
+    from app.models.property import Property as DbProperty
+    from app.services.push import send_push_notification as trigger_push
+
+    # 1. Strip and validate RPC URL
+    rpc_url = settings.NEAR_RPC_URL.strip()
+    if not current_user.near_account_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authenticated user does not have a registered NEAR Account ID."
+        )
+
+    # 2. Query NEAR RPC for transaction outcome
+    payload_tx = {
+        "jsonrpc": "2.0",
+        "id": "dontcare",
+        "method": "tx",
+        "params": [tx_hash, current_user.near_account_id]
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(rpc_url, json=payload_tx, timeout=15.0)
+            response.raise_for_status()
+            res_json = response.json()
+    except Exception as e:
+        logger.error(f"NEAR RPC request failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to query NEAR RPC for transaction status: {str(e)}"
+        )
+
+    if "error" in res_json:
+        logger.error(f"NEAR RPC transaction query returned error: {res_json['error']}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"NEAR RPC error: {res_json['error'].get('message', 'Unknown error')}"
+        )
+
+    result = res_json.get("result")
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found on-chain."
+        )
+
+    # 3. Verify transaction status is successful
+    tx_status = result.get("status", {})
+    if "SuccessValue" not in tx_status and "SuccessReceiptId" not in tx_status:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Transaction failed on-chain."
+        )
+
+    transaction_info = result.get("transaction", {})
+    signer_id = transaction_info.get("signer_id")
+    receiver_id = transaction_info.get("receiver_id")
+
+    if signer_id != current_user.near_account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Transaction signer '{signer_id}' does not match authenticated user's NEAR account '{current_user.near_account_id}'."
+        )
+
+    # 4. Fetch the actual onchain bids for this bidder via view method
+    args_json = json.dumps({"bidder": signer_id})
+    args_base64 = base64.b64encode(args_json.encode('utf-8')).decode('utf-8')
+
+    payload_query = {
+        "jsonrpc": "2.0",
+        "id": "dontcare",
+        "method": "query",
+        "params": {
+            "request_type": "call_function",
+            "finality": "final",
+            "account_id": receiver_id,
+            "method_name": "get_bids_by_bidder",
+            "args_base64": args_base64
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(rpc_url, json=payload_query, timeout=15.0)
+            response.raise_for_status()
+            query_res = response.json()
+    except Exception as e:
+        logger.error(f"NEAR RPC view query failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to query contract state via RPC: {str(e)}"
+        )
+
+    if "error" in query_res:
+        logger.error(f"NEAR RPC view query returned error: {query_res['error']}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Contract view error: {query_res['error'].get('message', 'Unknown error')}"
+        )
+
+    query_result = query_res.get("result", {})
+    if "result" not in query_result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No bids returned by contract for this user."
+        )
+
+    try:
+        bids_bytes = bytes(query_result["result"])
+        bids = json.loads(bids_bytes.decode('utf-8'))
+    except Exception as e:
+        logger.error(f"Failed to parse contract view return bytes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to decode contract return data: {str(e)}"
+        )
+
+    # 5. Locate matching bid and verify parameters
+    matching_bid = None
+    for bid in bids:
+        bid_id_onchain = bid.get("id")
+        property_id_onchain = bid.get("property_id")
+        bidder_onchain = bid.get("bidder_id") or bid.get("bidder")
+        amount_onchain = bid.get("bid_amount") or bid.get("amount")
+
+        if bidder_onchain != current_user.near_account_id:
+            continue
+        if expected_bid_id is not None and int(bid_id_onchain) != expected_bid_id:
+            continue
+        if expected_property_id is not None and int(property_id_onchain) != expected_property_id:
+            continue
+        if expected_amount is not None and int(amount_onchain) != expected_amount:
+            continue
+
+        matching_bid = bid
+        break
+
+    if not matching_bid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No on-chain bid matches the transaction and expected parameters."
+        )
+
+    bid_id = str(matching_bid.get("id"))
+    property_id_val = int(matching_bid.get("property_id"))
+    onchain_status_str = matching_bid.get("status")
+
+    # Map status
+    status_mapped = TransactionStatusEnum.pending
+    if isinstance(onchain_status_str, str):
+        onchain_status_lower = onchain_status_str.lower()
+        if onchain_status_lower == "cancelled":
+            status_mapped = TransactionStatusEnum.cancelled
+        elif onchain_status_lower == "docsreleased":
+            status_mapped = TransactionStatusEnum.docs_released
+        elif onchain_status_lower == "docsconfirmed":
+            status_mapped = TransactionStatusEnum.docs_confirmed
+        elif onchain_status_lower == "paymentreleased":
+            status_mapped = TransactionStatusEnum.payment_released
+        else:
+            try:
+                status_mapped = TransactionStatusEnum(onchain_status_lower)
+            except ValueError:
+                status_mapped = TransactionStatusEnum.pending
+    elif isinstance(onchain_status_str, dict):
+        # In case the enum is serialized as a dict: e.g. {"Pending": {}}
+        key = next(iter(onchain_status_str.keys())).lower()
+        if key == "cancelled":
+            status_mapped = TransactionStatusEnum.cancelled
+        elif key == "docsreleased":
+            status_mapped = TransactionStatusEnum.docs_released
+        elif key == "docsconfirmed":
+            status_mapped = TransactionStatusEnum.docs_confirmed
+        elif key == "paymentreleased":
+            status_mapped = TransactionStatusEnum.payment_released
+        else:
+            try:
+                status_mapped = TransactionStatusEnum(key)
+            except ValueError:
+                status_mapped = TransactionStatusEnum.pending
+
+    # Map action
+    onchain_action_str = matching_bid.get("action")
+    action_mapped = TransactionActionEnum.purchase
+    if isinstance(onchain_action_str, str):
+        try:
+            action_mapped = TransactionActionEnum(onchain_action_str.lower())
+        except ValueError:
+            pass
+    elif isinstance(onchain_action_str, dict):
+        key = next(iter(onchain_action_str.keys())).lower()
+        try:
+            action_mapped = TransactionActionEnum(key)
+        except ValueError:
+            pass
+
+    # 6. Fetch Property Seller Wallet Details
+    res_prop = await db.execute(
+        select(DbProperty).where(DbProperty.blockchain_property_id == str(property_id_val))
+    )
+    property_obj = res_prop.scalar_one_or_none()
+
+    seller_wallet_id = None
+    seller_user_id = None
+    if property_obj:
+        seller_user_id = property_obj.agent_id
+        res_wallet = await db.execute(
+            select(WalletMapping).where(WalletMapping.user_id == seller_user_id)
+        )
+        wallet_map = res_wallet.scalar_one_or_none()
+        if wallet_map:
+            seller_wallet_id = wallet_map.wallet_id
+
+    # 7. Upsert TransactionRecord
+    result_db = await db.execute(
+        select(TransactionRecord).where(TransactionRecord.bid_id == bid_id)
+    )
+    record = result_db.scalar_one_or_none()
+
+    metadata = {
+        "tx_hash": tx_hash,
+        "bid_amount": str(matching_bid.get("bid_amount") or matching_bid.get("amount")),
+        "stablecoin_token": matching_bid.get("stablecoin_token"),
+        "buyer_wallet_id": matching_bid.get("bidder_id") or matching_bid.get("bidder"),
+        "seller_wallet_id": seller_wallet_id,
+        "action": onchain_action_str,
+    }
+
+    if not record:
+        record = TransactionRecord(
+            bid_id=bid_id,
+            property_id=str(property_id_val),
+            status=status_mapped,
+            action=action_mapped,
+            bid_amount=metadata["bid_amount"],
+            stablecoin_token=metadata["stablecoin_token"],
+            buyer_wallet_id=metadata["buyer_wallet_id"],
+            seller_wallet_id=seller_wallet_id,
+            metadata_payload=metadata,
+        )
+    else:
+        record.status = status_mapped
+        record.action = action_mapped
+        record.bid_amount = metadata["bid_amount"]
+        record.stablecoin_token = metadata["stablecoin_token"]
+        record.buyer_wallet_id = metadata["buyer_wallet_id"]
+        record.seller_wallet_id = seller_wallet_id
+        record.metadata_payload = metadata
+
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+
+    # 8. Create Transaction Audit Log
+    audit = TransactionAuditLog(
+        bid_id=record.bid_id,
+        property_id=record.property_id,
+        from_status=None,
+        to_status=record.status.value,
+        actor_wallet_id=current_user.near_account_id,
+        tx_hash=tx_hash,
+        metadata_payload=metadata,
+    )
+    db.add(audit)
+    await db.commit()
+
+    # 9. Send push notification to property owner (seller) via FCM
+    if seller_user_id:
+        try:
+            await trigger_push(
+                user_id=seller_user_id,
+                title="New Bid Received",
+                body=f"You received a bid of {record.bid_amount} for property '{property_obj.title if property_obj else property_id_val}'.",
+                data={
+                    "property_id": str(property_id_val),
+                    "bid_id": bid_id,
+                    "amount": record.bid_amount,
+                },
+                db=db,
+            )
+        except Exception as push_err:
+            logger.error(f"Failed to trigger FCM push: {push_err}")
+
+    return record

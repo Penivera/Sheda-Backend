@@ -50,30 +50,26 @@ class PushNotificationService:
     ) -> None:
         """
         Register device token for push notifications.
-
-        Args:
-            user_id: User ID
-            device_token: FCM/APNs device token
-            device_type: Device type (mobile, web)
-            device_name: Optional device name/model
-
-        Raises:
-            NotificationError: If registration fails
         """
         try:
-            # In production, store in database
-            # For now, maintain in-memory cache
-            if user_id not in self.device_tokens:
-                self.device_tokens[user_id] = []
+            from core.database import AsyncSessionLocal
+            from app.models.user import BaseUser
+            from sqlalchemy import select
 
-            if device_token not in self.device_tokens[user_id]:
-                self.device_tokens[user_id].append(device_token)
-
-            logger.info(
-                f"Device token registered",
-                user_id=user_id,
-                device_type=device_type,
-            )
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(BaseUser).where(BaseUser.id == user_id))
+                user = result.scalar_one_or_none()
+                if user:
+                    user.device_token = device_token
+                    db.add(user)
+                    await db.commit()
+                    logger.info(
+                        f"Device token registered in DB",
+                        user_id=user_id,
+                        device_type=device_type,
+                    )
+                else:
+                    raise NotificationError(detail="User not found")
         except Exception as e:
             logger.error(f"Device token registration failed: {str(e)}")
             raise NotificationError(detail="Failed to register device token")
@@ -85,23 +81,25 @@ class PushNotificationService:
     ) -> None:
         """
         Unregister device token.
-
-        Args:
-            user_id: User ID
-            device_token: Device token to unregister
         """
-        if user_id in self.device_tokens:
-            self.device_tokens[user_id] = [
-                token for token in self.device_tokens[user_id] if token != device_token
-            ]
+        try:
+            from core.database import AsyncSessionLocal
+            from app.models.user import BaseUser
+            from sqlalchemy import select
 
-            if not self.device_tokens[user_id]:
-                del self.device_tokens[user_id]
-
-            logger.info(
-                f"Device token unregistered",
-                user_id=user_id,
-            )
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(BaseUser).where(BaseUser.id == user_id))
+                user = result.scalar_one_or_none()
+                if user and user.device_token == device_token:
+                    user.device_token = None
+                    db.add(user)
+                    await db.commit()
+                    logger.info(
+                        f"Device token unregistered in DB",
+                        user_id=user_id,
+                    )
+        except Exception as e:
+            logger.error(f"Device token unregistration failed: {str(e)}")
 
     async def send_notification(
         self,
@@ -113,48 +111,45 @@ class PushNotificationService:
     ) -> Dict[str, Any]:
         """
         Send push notification to user.
-
-        Args:
-            user_id: Target user ID
-            title: Notification title
-            body: Notification body
-            notification_type: Type of notification
-            data: Optional additional data
-
-        Returns:
-            Response with sent device count
-
-        Raises:
-            NotificationError: If sending fails
         """
-        if user_id not in self.device_tokens:
-            logger.warning(f"No device tokens for user {user_id}")
+        from core.database import AsyncSessionLocal
+        from app.models.user import BaseUser
+        from sqlalchemy import select
+
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(BaseUser.device_token).where(BaseUser.id == user_id))
+                device_token = result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to fetch device token from DB: {str(e)}")
             return {"sent": 0, "failed": 0}
 
-        device_tokens = self.device_tokens[user_id]
+        if not device_token:
+            logger.warning(f"No device token for user {user_id}")
+            return {"sent": 0, "failed": 0}
+
         sent_count = 0
         failed_count = 0
 
-        for token in device_tokens:
-            try:
-                result = await self._send_to_device(
-                    token,
-                    title,
-                    body,
-                    notification_type,
-                    data,
-                )
-                sent_count += 1
-                logger.debug(f"Notification sent to user {user_id}")
-            except Exception as e:
-                failed_count += 1
-                logger.error(f"Failed to send to device {token}: {str(e)}")
+        try:
+            result = await self._send_to_device(
+                device_token,
+                title,
+                body,
+                notification_type,
+                data,
+            )
+            sent_count = 1
+            logger.info(f"Notification sent to user {user_id}")
+        except Exception as e:
+            failed_count = 1
+            logger.error(f"Failed to send to device {device_token}: {str(e)}")
 
         return {
             "user_id": user_id,
             "sent": sent_count,
             "failed": failed_count,
-            "total": len(device_tokens),
+            "total": 1,
         }
 
     async def send_to_multiple_users(
