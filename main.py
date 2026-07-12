@@ -130,6 +130,9 @@ def create_app() -> FastAPI:
     # NOTE - Custom 404 handler
     @app.exception_handler(404)
     async def custom_404_handler(request: Request, exc: HTTPException):
+        if request.url.path.startswith(settings.API_V_STR):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=404, content={"detail": exc.detail})
         return templates.TemplateResponse(
             "404.html", {"request": request}, status_code=404
         )
