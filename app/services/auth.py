@@ -95,7 +95,15 @@ async def get_user(
 
 
 async def authenticate_user(login_data: LoginData, db: AsyncSession) -> UserInDB:
-    user: UserInDB = await get_user(login_data.username, db)  # type: ignore
+    try:
+        user: UserInDB = await get_user(login_data.username, db)  # type: ignore
+    except HTTPException as e:
+        if e.status_code == status.HTTP_404_NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Username"
+            )
+        raise e
+        
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Username"

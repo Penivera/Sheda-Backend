@@ -24,7 +24,7 @@ class HTTPBearerWithScopes(HTTPBearer):
     def __init__(self, scopes: dict):
         super().__init__()
         self.model.flows = OAuthFlowsModel(  # type: ignore
-            password=OAuthFlowPassword(tokenUrl="token", scopes=scopes)
+            password=OAuthFlowPassword(tokenUrl=settings.token_url, scopes=scopes)
         )
 
 
