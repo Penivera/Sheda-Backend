@@ -134,7 +134,7 @@ def create_app() -> FastAPI:
             from fastapi.responses import JSONResponse
             return JSONResponse(status_code=404, content={"detail": exc.detail})
         return templates.TemplateResponse(
-            "404.html", {"request": request}, status_code=404
+            request, "404.html", status_code=404
         )
 
     # NOTE - Mount Starlette Admin
