@@ -10,7 +10,12 @@ from app.models.property import (
     AccountInfo,
 )
 from app.models.user import BaseUser, Agent
-from app.schemas.property_schema import PropertyBase, PropertyUpdate, ContractCreate
+from app.schemas.property_schema import (
+    PropertyBase,
+    PropertyUpdate,
+    ContractCreate,
+    PropertyShow,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from app.schemas.property_schema import (
@@ -78,8 +83,13 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
         cached = await cache.get_property_detail(property_id)
         if cached:
             logger.debug(f"Property cache hit", extra={"property_id": property_id})
-            # Reconstruct property from cached dict
-            return Property(**cached)
+            # `cached` is a fully-serialized PropertyShow payload (see below) —
+            # NOT a partial dict of raw Property columns. Reconstructing a bare
+            # Property(**cached) here previously produced a transient ORM object
+            # missing most required PropertyShow fields (status, furnished,
+            # is_active, images, etc.), which failed response-model validation
+            # with a 500 on every cache hit.
+            return PropertyShow(**cached)
     except Exception as e:
         logger.warning(f"Cache error, falling back to database: {e}")
 
@@ -92,22 +102,14 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
             detail=f"Property with id: {property_id} not found",
         )
 
-    # Cache the result
+    # Cache the full response payload (not a hand-picked subset of columns) so
+    # a cache hit can be served without touching the DB or the ORM object again.
     try:
         cache = await get_cache_service()
-        property_dict = {
-            "id": property.id,
-            "title": property.title,
-            "description": property.description,
-            "price": property.price,
-            "location": property.location,
-            "bedroom": property.bedroom,
-            "bathroom": property.bathroom,
-            "property_type": property.property_type,
-            "listing_type": property.listing_type,
-            "agent_id": property.agent_id,
-        }
-        await cache.set_property_detail(property_id, property_dict)
+        property_show = PropertyShow.model_validate(property, from_attributes=True)
+        await cache.set_property_detail(
+            property_id, property_show.model_dump(mode="json")
+        )
     except Exception as e:
         logger.warning(f"Failed to cache property: {e}")
 
