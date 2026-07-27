@@ -26,8 +26,6 @@ STATUS_FILTERS: dict[str, set[TransactionStatusEnum]] = {
     "ongoing": {
         TransactionStatusEnum.pending,
         TransactionStatusEnum.accepted,
-        TransactionStatusEnum.appointment_booked,
-        TransactionStatusEnum.appointment_accepted,
         TransactionStatusEnum.docs_released,
         TransactionStatusEnum.docs_confirmed,
         TransactionStatusEnum.payment_released,
@@ -37,16 +35,19 @@ STATUS_FILTERS: dict[str, set[TransactionStatusEnum]] = {
     "cancelled": {TransactionStatusEnum.rejected, TransactionStatusEnum.cancelled},
 }
 
+# Appointment scheduling (booked/accepted/rejected) never changes the
+# on-chain bid status — the contract has no concept of appointments, so
+# bid.status stays "Accepted" the whole time a viewing is arranged. These
+# events exist only so the notification call doesn't 422; they all map back
+# onto the existing "accepted" status rather than inventing backend-only
+# statuses that don't correspond to any on-chain state.
 EVENT_STATUS_MAP: dict[TransactionEventEnum, TransactionStatusEnum] = {
     TransactionEventEnum.bid_placed: TransactionStatusEnum.pending,
     TransactionEventEnum.bid_accepted: TransactionStatusEnum.accepted,
     TransactionEventEnum.bid_rejected: TransactionStatusEnum.rejected,
     TransactionEventEnum.bid_cancelled: TransactionStatusEnum.cancelled,
-    TransactionEventEnum.appointment_booked: TransactionStatusEnum.appointment_booked,
-    TransactionEventEnum.appointment_accepted: TransactionStatusEnum.appointment_accepted,
-    # Rejecting an appointment sends the transaction back to "accepted" so the
-    # buyer can rebook — it isn't a terminal state, so it reuses that status
-    # rather than needing its own.
+    TransactionEventEnum.appointment_booked: TransactionStatusEnum.accepted,
+    TransactionEventEnum.appointment_accepted: TransactionStatusEnum.accepted,
     TransactionEventEnum.appointment_rejected: TransactionStatusEnum.accepted,
     TransactionEventEnum.docs_released: TransactionStatusEnum.docs_released,
     TransactionEventEnum.docs_confirmed: TransactionStatusEnum.docs_confirmed,

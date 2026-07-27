@@ -1,4 +1,4 @@
-"""add appointment transaction status/event enum values
+"""add appointment transaction event enum values
 
 Revision ID: b3d6e9a2f108
 Revises: 9f4c2b1a8d7e
@@ -20,12 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.execute(
-        "ALTER TYPE transactionstatusenum ADD VALUE IF NOT EXISTS 'appointment_booked'"
-    )
-    op.execute(
-        "ALTER TYPE transactionstatusenum ADD VALUE IF NOT EXISTS 'appointment_accepted'"
-    )
     op.execute(
         "ALTER TYPE transactioneventenum ADD VALUE IF NOT EXISTS 'appointment_booked'"
     )

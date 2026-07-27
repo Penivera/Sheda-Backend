@@ -78,8 +78,6 @@ class TransactionStatusEnum(str, Enum):
     accepted = "accepted"
     rejected = "rejected"
     cancelled = "cancelled"
-    appointment_booked = "appointment_booked"
-    appointment_accepted = "appointment_accepted"
     docs_released = "docs_released"
     docs_confirmed = "docs_confirmed"
     payment_released = "payment_released"
