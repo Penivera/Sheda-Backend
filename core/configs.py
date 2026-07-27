@@ -1,6 +1,13 @@
 import logging
-from dotenv import load_dotenv
 import os
+import types
+import bcrypt
+from dotenv import load_dotenv
+
+# Workaround for passlib compatibility with bcrypt >= 4.0.0 where passlib reads bcrypt.__about__.__version__
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = types.SimpleNamespace(__version__=getattr(bcrypt, "__version__", "4.0.0"))
+
 from passlib.context import CryptContext
 from datetime import timedelta
 import redis.asyncio as aioredis
