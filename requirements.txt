@@ -93,7 +93,6 @@ pydantic==2.10.6
 pydantic-extra-types==2.10.5
 pydantic-partial==0.7.0
 pydantic-settings==2.10.1
-pydantic_core
 Pygments==2.19.2
 PyJWT==2.10.1
 pyparsing==3.3.2
