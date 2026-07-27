@@ -11,7 +11,7 @@ asgiref
 async-timeout
 asyncpg
 babel
-bcrypt
+bcrypt<4.0.0
 bidict
 billiard
 blinker
