@@ -36,11 +36,15 @@ STATUS_FILTERS: dict[str, set[TransactionStatusEnum]] = {
 }
 
 EVENT_STATUS_MAP: dict[TransactionEventEnum, TransactionStatusEnum] = {
+    TransactionEventEnum.bid_placed: TransactionStatusEnum.pending,
     TransactionEventEnum.bid_accepted: TransactionStatusEnum.accepted,
     TransactionEventEnum.bid_rejected: TransactionStatusEnum.rejected,
+    TransactionEventEnum.bid_cancelled: TransactionStatusEnum.cancelled,
     TransactionEventEnum.docs_released: TransactionStatusEnum.docs_released,
     TransactionEventEnum.docs_confirmed: TransactionStatusEnum.docs_confirmed,
     TransactionEventEnum.payment_released: TransactionStatusEnum.payment_released,
+    TransactionEventEnum.transaction_completed: TransactionStatusEnum.completed,
+    TransactionEventEnum.dispute_raised: TransactionStatusEnum.disputed,
 }
 
 
