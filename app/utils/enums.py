@@ -86,11 +86,15 @@ class TransactionStatusEnum(str, Enum):
 
 
 class TransactionEventEnum(str, Enum):
+    bid_placed = "bid_placed"
     bid_accepted = "bid_accepted"
     bid_rejected = "bid_rejected"
+    bid_cancelled = "bid_cancelled"
     docs_released = "docs_released"
     docs_confirmed = "docs_confirmed"
     payment_released = "payment_released"
+    transaction_completed = "transaction_completed"
+    dispute_raised = "dispute_raised"
 
 
 class TransactionActionEnum(str, Enum):
