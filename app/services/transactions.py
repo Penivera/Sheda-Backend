@@ -26,6 +26,8 @@ STATUS_FILTERS: dict[str, set[TransactionStatusEnum]] = {
     "ongoing": {
         TransactionStatusEnum.pending,
         TransactionStatusEnum.accepted,
+        TransactionStatusEnum.appointment_booked,
+        TransactionStatusEnum.appointment_accepted,
         TransactionStatusEnum.docs_released,
         TransactionStatusEnum.docs_confirmed,
         TransactionStatusEnum.payment_released,
@@ -40,6 +42,12 @@ EVENT_STATUS_MAP: dict[TransactionEventEnum, TransactionStatusEnum] = {
     TransactionEventEnum.bid_accepted: TransactionStatusEnum.accepted,
     TransactionEventEnum.bid_rejected: TransactionStatusEnum.rejected,
     TransactionEventEnum.bid_cancelled: TransactionStatusEnum.cancelled,
+    TransactionEventEnum.appointment_booked: TransactionStatusEnum.appointment_booked,
+    TransactionEventEnum.appointment_accepted: TransactionStatusEnum.appointment_accepted,
+    # Rejecting an appointment sends the transaction back to "accepted" so the
+    # buyer can rebook — it isn't a terminal state, so it reuses that status
+    # rather than needing its own.
+    TransactionEventEnum.appointment_rejected: TransactionStatusEnum.accepted,
     TransactionEventEnum.docs_released: TransactionStatusEnum.docs_released,
     TransactionEventEnum.docs_confirmed: TransactionStatusEnum.docs_confirmed,
     TransactionEventEnum.payment_released: TransactionStatusEnum.payment_released,
