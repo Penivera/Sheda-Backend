@@ -42,37 +42,49 @@ class BaseUserModelView(ModelView):
     exclude_fields_from_list = ["password"]
     exclude_fields_from_detail = ["password"]
 
+    async def _populate_obj(
+        self,
+        request: Request,
+        obj: Any,
+        data: Dict[str, Any],
+        is_edit: bool = False,
+    ) -> Any:
+        original_avatar = getattr(obj, "avatar_url", None) if is_edit else None
+        await super()._populate_obj(request, obj, data, is_edit)
+        if isinstance(getattr(obj, "avatar_url", None), (dict, UploadFile)):
+            setattr(obj, "avatar_url", original_avatar)
+        return obj
+
     async def before_create(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
         await self._handle_password_and_avatar(data=data, is_edit=False, obj=obj)
-        
 
     async def before_edit(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
-        
-        await self._handle_password_and_avatar(data, is_edit=True,obj=obj)
-        
+        await self._handle_password_and_avatar(data, is_edit=True, obj=obj)
 
     async def _handle_password_and_avatar(
-        self, data: Dict[str, Any], is_edit: bool = False,obj:Any=None
+        self, data: Dict[str, Any], is_edit: bool = False, obj: Any = None
     ):
         # 1. Handle Password Hashing
         password = data.get("password")
-        
+
         if password and not settings.pwd_context.identify(password):
-           data["password"] = hash_password(password)
-           
+            hashed = hash_password(password)
+            data["password"] = hashed
+            if obj:
+                obj.password = hashed
         else:
             if not is_edit:
                 raise FormValidationError({"password": "Password is required."})
             else:
                 data.pop("password", None)
-        
+
         # 2. Avatar Upload
         raw_avatar = data.get("avatar_url")
-        
+
         avatar_file = None
         should_clear = False
 
@@ -83,12 +95,17 @@ class BaseUserModelView(ModelView):
 
         if should_clear:
             data["avatar_url"] = None
-        elif avatar_file and getattr(avatar_file, "filename", None):
+            if obj:
+                obj.avatar_url = None
+        elif isinstance(avatar_file, UploadFile) and getattr(avatar_file, "filename", None):
             try:
                 content = await avatar_file.read()
                 if content:
                     response = cloudinary.uploader.upload(content, folder="profile")
-                    data["avatar_url"] = response.get("secure_url")
+                    url = response.get("secure_url")
+                    data["avatar_url"] = url
+                    if obj:
+                        obj.avatar_url = url
                 else:
                     data.pop("avatar_url", None)
             except Exception as e:
@@ -96,13 +113,12 @@ class BaseUserModelView(ModelView):
                 data.pop("avatar_url", None)
         else:
             data.pop("avatar_url", None)
-            
-       
-        if "avatar_url" in data:
+
+        if "avatar_url" in data and obj:
             obj.avatar_url = data["avatar_url"]
-        if "password" in data:
+        if "password" in data and obj:
             obj.password = data["password"]
-        if "username" in data:
+        if "username" in data and obj:
             obj.username = data["username"]
 
 
@@ -116,8 +132,6 @@ class ClientModelView(BaseUserModelView):
 
     exclude_fields_from_list = ["properties", "password"]
     exclude_fields_from_detail = ["properties", "password"]
-    
-
 
 
 class AgentModelView(BaseUserModelView):
@@ -142,6 +156,7 @@ class AgentModelView(BaseUserModelView):
         "password",
     ]
 
+
 class AdminModelView(BaseUserModelView):
     """
     Admin model for managing admin users.
@@ -158,7 +173,6 @@ class PropertyModelView(ModelView):
     name = "Property"
 
 
-
 class PropertyImageModelView(ModelView):
     """Handles Property Image uploads."""
 
@@ -171,37 +185,62 @@ class PropertyImageModelView(ModelView):
         "is_primary",
     ]
 
+    async def _populate_obj(
+        self,
+        request: Request,
+        obj: Any,
+        data: Dict[str, Any],
+        is_edit: bool = False,
+    ) -> Any:
+        original_image = getattr(obj, "image_url", None) if is_edit else None
+        await super()._populate_obj(request, obj, data, is_edit)
+        if isinstance(getattr(obj, "image_url", None), (dict, UploadFile)):
+            setattr(obj, "image_url", original_image)
+        return obj
+
     async def before_create(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
-        await self._handle_image_upload(data)
+        await self._handle_image_upload(data, is_edit=False, obj=obj)
 
     async def before_edit(
         self, request: Request, data: Dict[str, Any], obj: Any
     ) -> None:
-        await self._handle_image_upload(data, is_edit=True)
-        if "image_url" in data:
-            obj.image_url = data["image_url"]
+        await self._handle_image_upload(data, is_edit=True, obj=obj)
 
-    async def _handle_image_upload(self, data: Dict[str, Any], is_edit: bool = False):
+    async def _handle_image_upload(
+        self, data: Dict[str, Any], is_edit: bool = False, obj: Any = None
+    ):
         image = data.get("image_url")
 
+        image_file = None
+        should_clear = False
+
         if isinstance(image, tuple):
-            image_file = image[0]  # extract UploadFile
-        else:
+            image_file, should_clear = image
+        elif isinstance(image, UploadFile):
             image_file = image
 
-        if isinstance(image_file, UploadFile):
-            response = cloudinary.uploader.upload(
-                await image_file.read(), folder="property"
-            )
-            url = response.get("secure_url")
-            if url:
-                data["image_url"] = url
-            else:
-                # If upload failed or was empty, remove key to avoid DB error
+        if should_clear:
+            data["image_url"] = None
+            if obj:
+                obj.image_url = None
+        elif isinstance(image_file, UploadFile) and getattr(image_file, "filename", None):
+            try:
+                content = await image_file.read()
+                if content:
+                    response = cloudinary.uploader.upload(content, folder="property")
+                    url = response.get("secure_url")
+                    if url:
+                        data["image_url"] = url
+                        if obj:
+                            obj.image_url = url
+                    else:
+                        data.pop("image_url", None)
+            except Exception as e:
+                print(f"Error uploading image: {e}")
                 data.pop("image_url", None)
-        elif not data.get("image_url") and is_edit:
+        else:
             data.pop("image_url", None)
 
 
