@@ -283,7 +283,7 @@ async def index_property_for_search(
 
     try:
         # Get property from database
-        property_obj = await get_property_by_id(property_id, db)
+        property_obj = await get_property_by_id(property_id, db, use_cache=False)
 
         if property_obj.agent_id != current_user.id:
             raise HTTPException(
