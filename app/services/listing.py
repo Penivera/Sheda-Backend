@@ -62,7 +62,9 @@ async def get_user_properties(
     return property
 
 
-async def get_property_by_id(property_id: int, db: AsyncSession):
+async def get_property_by_id(
+    property_id: int, db: AsyncSession, use_cache: bool = True
+):
     """Fetch a single property by its ID.
 
     Args:
@@ -75,23 +77,24 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
     Raises:
         HTTPException: If the property is not found.
     """
-    # Try cache first
-    try:
-        from app.services.cache import get_cache_service
+    if use_cache:
+        # Try cache first
+        try:
+            from app.services.cache import get_cache_service
 
-        cache = await get_cache_service()
-        cached = await cache.get_property_detail(property_id)
-        if cached:
-            logger.debug(f"Property cache hit", extra={"property_id": property_id})
-            # `cached` is a fully-serialized PropertyShow payload (see below) —
-            # NOT a partial dict of raw Property columns. Reconstructing a bare
-            # Property(**cached) here previously produced a transient ORM object
-            # missing most required PropertyShow fields (status, furnished,
-            # is_active, images, etc.), which failed response-model validation
-            # with a 500 on every cache hit.
-            return PropertyShow(**cached)
-    except Exception as e:
-        logger.warning(f"Cache error, falling back to database: {e}")
+            cache = await get_cache_service()
+            cached = await cache.get_property_detail(property_id)
+            if cached:
+                logger.debug(f"Property cache hit", extra={"property_id": property_id})
+                # `cached` is a fully-serialized PropertyShow payload (see below) —
+                # NOT a partial dict of raw Property columns. Reconstructing a bare
+                # Property(**cached) here previously produced a transient ORM object
+                # missing most required PropertyShow fields (status, furnished,
+                # is_active, images, etc.), which failed response-model validation
+                # with a 500 on every cache hit.
+                return PropertyShow(**cached)
+        except Exception as e:
+            logger.warning(f"Cache error, falling back to database: {e}")
 
     query = select(Property).where(Property.id == property_id)
     result: Result = await db.execute(query)
@@ -105,6 +108,8 @@ async def get_property_by_id(property_id: int, db: AsyncSession):
     # Cache the full response payload (not a hand-picked subset of columns) so
     # a cache hit can be served without touching the DB or the ORM object again.
     try:
+        from app.services.cache import get_cache_service
+
         cache = await get_cache_service()
         property_show = PropertyShow.model_validate(property, from_attributes=True)
         await cache.set_property_detail(
