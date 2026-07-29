@@ -98,6 +98,18 @@ class TransactionEventEnum(str, Enum):
     payment_released = "payment_released"
     transaction_completed = "transaction_completed"
     dispute_raised = "dispute_raised"
+    # Lease lifecycle, post-completion — the underlying bid's status is
+    # already `completed`/`payment_released` on-chain by the time either of
+    # these fires (see EVENT_STATUS_MAP: both map back to `completed`,
+    # matching transaction_completed's effect for an already-completed bid).
+    # lease_completed: owner reclaimed the property after end_time passed
+    # (on-chain expire_lease/completeLease), transaction_id = the *original*
+    # lease's bid_id. lease_renewed: owner accepted a renewal bid
+    # (on-chain accept_lease_renewal) — this is its own new on-chain bid
+    # with its own bid_id/document token, so it gets its own
+    # TransactionRecord rather than patching the original one.
+    lease_completed = "lease_completed"
+    lease_renewed = "lease_renewed"
 
 
 class TransactionActionEnum(str, Enum):
