@@ -55,6 +55,8 @@ EVENT_STATUS_MAP: dict[TransactionEventEnum, TransactionStatusEnum] = {
     TransactionEventEnum.payment_released: TransactionStatusEnum.payment_released,
     TransactionEventEnum.transaction_completed: TransactionStatusEnum.completed,
     TransactionEventEnum.dispute_raised: TransactionStatusEnum.disputed,
+    TransactionEventEnum.lease_completed: TransactionStatusEnum.completed,
+    TransactionEventEnum.lease_renewed: TransactionStatusEnum.completed,
 }
 
 
