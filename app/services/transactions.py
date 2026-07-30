@@ -59,6 +59,18 @@ EVENT_STATUS_MAP: dict[TransactionEventEnum, TransactionStatusEnum] = {
     TransactionEventEnum.lease_renewed: TransactionStatusEnum.completed,
 }
 
+# Appointment events have no on-chain BidStatus equivalent (the NEAR contract
+# only knows bid pending/accepted/rejected/etc — appointments are a purely
+# off-chain scheduling step between "accepted" and document release). They
+# must NOT appear in EVENT_STATUS_MAP or overwrite TransactionRecord.status —
+# that column mirrors on-chain state 1:1 and drives STATUS_FILTERS bucketing
+# above. Instead they're stashed under metadata_payload["appointment_status"].
+APPOINTMENT_EVENT_STATUS: dict[TransactionEventEnum, str] = {
+    TransactionEventEnum.appointment_booked: "booked",
+    TransactionEventEnum.appointment_accepted: "accepted",
+    TransactionEventEnum.appointment_rejected: "rejected",
+}
+
 
 async def get_transactions(
     status_filter: Optional[str],
@@ -151,6 +163,9 @@ async def get_transactions(
                 stablecoin_token=record.stablecoin_token,
                 document_token_id=record.document_token_id,
                 escrow_release_tx=record.escrow_release_tx,
+                appointment_status=(
+                    (record.metadata_payload or {}).get("appointment_status")
+                ),
                 updated_at=record.updated_at,
                 property=property_info,
                 counterparty=counterparty_info,
@@ -176,7 +191,8 @@ async def upsert_transaction_from_event(
     metadata: Optional[dict],
     db: AsyncSession,
 ) -> TransactionRecord:
-    status = EVENT_STATUS_MAP[event]
+    is_appointment_event = event in APPOINTMENT_EVENT_STATUS
+
     result = await db.execute(
         select(TransactionRecord).where(TransactionRecord.bid_id == transaction_id)
     )
@@ -184,8 +200,18 @@ async def upsert_transaction_from_event(
 
     if record:
         from_status = record.status.value
-        record.status = status
+        if not is_appointment_event:
+            record.status = EVENT_STATUS_MAP[event]
+        # else: appointment events don't touch the on-chain-mirroring status
     else:
+        # Appointment events should always follow bid_accepted (which already
+        # creates the record) — this branch is a defensive fallback, not the
+        # expected path.
+        status = (
+            TransactionStatusEnum.accepted
+            if is_appointment_event
+            else EVENT_STATUS_MAP[event]
+        )
         record = TransactionRecord(
             bid_id=transaction_id,
             property_id=str(property_id),
@@ -193,27 +219,36 @@ async def upsert_transaction_from_event(
         )
         from_status = None
 
-    if metadata:
-        record.metadata_payload = metadata
-        record.document_token_id = metadata.get(
+    # Merge rather than overwrite — a later event (e.g. payment_released)
+    # must not silently wipe out fields set by an earlier one, such as the
+    # appointment_status this function may have set below.
+    merged_metadata = {**(record.metadata_payload or {}), **(metadata or {})}
+    if is_appointment_event:
+        merged_metadata["appointment_status"] = APPOINTMENT_EVENT_STATUS[event]
+
+    if merged_metadata:
+        record.metadata_payload = merged_metadata
+        record.document_token_id = merged_metadata.get(
             "document_token_id", record.document_token_id
         )
-        record.escrow_release_tx = metadata.get(
+        record.escrow_release_tx = merged_metadata.get(
             "escrow_release_tx", record.escrow_release_tx
         )
         record.bid_amount = (
-            str(metadata.get("bid_amount"))
-            if metadata.get("bid_amount")
+            str(merged_metadata.get("bid_amount"))
+            if merged_metadata.get("bid_amount")
             else record.bid_amount
         )
-        record.stablecoin_token = metadata.get(
+        record.stablecoin_token = merged_metadata.get(
             "stablecoin_token", record.stablecoin_token
         )
-        record.buyer_wallet_id = metadata.get("buyer_wallet_id", record.buyer_wallet_id)
-        record.seller_wallet_id = metadata.get(
+        record.buyer_wallet_id = merged_metadata.get(
+            "buyer_wallet_id", record.buyer_wallet_id
+        )
+        record.seller_wallet_id = merged_metadata.get(
             "seller_wallet_id", record.seller_wallet_id
         )
-        record.action = _parse_action(metadata.get("action")) or record.action
+        record.action = _parse_action(merged_metadata.get("action")) or record.action
 
     db.add(record)
     await db.commit()
