@@ -31,6 +31,10 @@ class TransactionView(BaseModel):
     stablecoin_token: Optional[str] = None
     document_token_id: Optional[str] = None
     escrow_release_tx: Optional[str] = None
+    # No on-chain BidStatus equivalent — set via upsert_transaction_from_event's
+    # appointment-event branch (services/transactions.py), read back out of
+    # metadata_payload. One of "booked" | "accepted" | "rejected" | None.
+    appointment_status: Optional[str] = None
     updated_at: Optional[datetime] = None
     property: Optional[TransactionPropertyInfo] = None
     counterparty: Optional[TransactionCounterpartyInfo] = None
