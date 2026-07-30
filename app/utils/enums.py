@@ -110,6 +110,13 @@ class TransactionEventEnum(str, Enum):
     # TransactionRecord rather than patching the original one.
     lease_completed = "lease_completed"
     lease_renewed = "lease_renewed"
+    # Appointment sub-flow — no on-chain BidStatus equivalent, so these don't
+    # appear in EVENT_STATUS_MAP (services/transactions.py) and don't change
+    # TransactionRecord.status; they're persisted in metadata_payload instead
+    # (see upsert_transaction_from_event's is_appointment_event branch).
+    appointment_booked = "appointment_booked"
+    appointment_accepted = "appointment_accepted"
+    appointment_rejected = "appointment_rejected"
 
 
 class TransactionActionEnum(str, Enum):
