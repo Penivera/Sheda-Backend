@@ -127,11 +127,19 @@ async def submit_bid_transaction(
     )
     buyer_user = buyer_wallet_mapping.scalars().first()
 
-    # Get property info
+    # Get property info.
+    #
+    # blockchain_property_id has no unique constraint, and a property that has
+    # been listed more than once (a resale by its new owner) legitimately has
+    # several rows pointing at the same on-chain token. scalar_one_or_none()
+    # raises MultipleResultsFound in that case, which would 500 this endpoint,
+    # so take the most recent listing instead.
     prop_res = await db.execute(
-        select(Property).where(Property.blockchain_property_id == record.property_id)
+        select(Property)
+        .where(Property.blockchain_property_id == record.property_id)
+        .order_by(Property.id.desc())
     )
-    property_obj = prop_res.scalar_one_or_none()
+    property_obj = prop_res.scalars().first()
 
     property_info = None
     if property_obj:
