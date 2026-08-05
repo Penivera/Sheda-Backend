@@ -345,6 +345,50 @@ async def update_agent_availabilty(
     return schedule
 
 
+async def delete_agent_availability(
+    schedule_id: int, current_user: AgentFeed, db: AsyncSession
+):
+    """
+    Remove one of the agent's viewing windows.
+
+    Ownership is enforced by only searching within current_user.availabilities,
+    matching update_agent_availabilty above — an id belonging to another agent
+    is indistinguishable from one that doesn't exist.
+
+    A window that is already booked is refused rather than deleted: an
+    Appointment records its own scheduled_at and holds no FK back to
+    agent_availability, so removing the window here would leave that booking
+    standing with nothing on the agent's schedule accounting for it. The agent
+    cancels the appointment first.
+    """
+    schedule = next(
+        (
+            availability
+            for availability in current_user.availabilities
+            if availability.id == schedule_id
+        ),
+        None,
+    )
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schedule not found or you are not the owner",
+        )
+
+    if schedule.is_booked:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This slot has a booked viewing. Cancel the appointment before "
+                "removing the window."
+            ),
+        )
+
+    await db.delete(schedule)
+    await db.commit()
+    return {"detail": "Availability deleted successfully"}
+
+
 async def cancel_appointment_by_id(
     appointment_id: int, current_user: UserInDB, db: AsyncSession
 ):
