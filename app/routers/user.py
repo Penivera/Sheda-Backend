@@ -35,6 +35,7 @@ from app.services.listing import (
     create_availability,
     fetch_schedule,
     update_agent_availabilty,
+    delete_agent_availability,
     cancel_appointment_by_id,
     get_payment_info,  # type: ignore # type: ignore # type: ignore
     confirm_payment,
@@ -222,6 +223,20 @@ async def update_schedule(
     db: DBSession,
 ):
     return await update_agent_availabilty(update_data, db, schedule_id, current_user)  # type: ignore # type: ignore
+
+
+# NOTE delete availability
+@router.delete(
+    "/delete-schedule/{schedule_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=dict,
+)
+async def delete_schedule(
+    schedule_id: int,
+    current_user: ActiveAgent,
+    db: DBSession,
+):
+    return await delete_agent_availability(schedule_id, current_user, db)  # type: ignore
 
 
 @router.post(
