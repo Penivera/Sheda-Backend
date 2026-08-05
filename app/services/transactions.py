@@ -1,7 +1,7 @@
 from typing import Optional
 
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 from core.logger import logger
@@ -88,11 +88,27 @@ async def get_transactions(
     buyer_user = aliased(BaseUser)
     seller_user = aliased(BaseUser)
 
+    # blockchain_property_id has no unique constraint, and a resold property
+    # legitimately has one row per listing. Joining Property directly on it
+    # would emit a duplicate feed row per extra listing, so collapse to the
+    # most recent listing for each on-chain token first.
+    latest_listing = (
+        select(
+            Property.blockchain_property_id.label("blockchain_property_id"),
+            func.max(Property.id).label("property_id"),
+        )
+        .where(Property.blockchain_property_id.isnot(None))
+        .group_by(Property.blockchain_property_id)
+        .subquery()
+    )
+
     stmt = (
         select(TransactionRecord, Property, buyer_user, seller_user)
         .outerjoin(
-            Property, Property.blockchain_property_id == TransactionRecord.property_id
+            latest_listing,
+            latest_listing.c.blockchain_property_id == TransactionRecord.property_id,
         )
+        .outerjoin(Property, Property.id == latest_listing.c.property_id)
         .outerjoin(
             buyer_wallet, buyer_wallet.wallet_id == TransactionRecord.buyer_wallet_id
         )
@@ -254,6 +270,8 @@ async def upsert_transaction_from_event(
     await db.commit()
     await db.refresh(record)
 
+    await _sync_property_owner_after_sale(record, db)
+
     audit = TransactionAuditLog(
         bid_id=record.bid_id,
         property_id=record.property_id,
@@ -267,6 +285,68 @@ async def upsert_transaction_from_event(
     await db.commit()
 
     return record
+
+
+# Statuses that mean a purchase has actually paid out — at which point the
+# property has changed hands on-chain (the contract moves the NFT during
+# release_escrow) and our record of who owns it is stale.
+_SOLD_STATUSES = {
+    TransactionStatusEnum.payment_released,
+    TransactionStatusEnum.completed,
+}
+
+
+async def _sync_property_owner_after_sale(
+    record: TransactionRecord, db: AsyncSession
+) -> None:
+    """Point `Property.blockchain_owner_id` at the buyer once a purchase settles.
+
+    Nothing was updating this. It's written when the listing is created and
+    then never again, so after a sale the backend kept naming the seller as
+    on-chain owner indefinitely — disagreeing with both the contract and the
+    NFT itself.
+
+    Only `blockchain_owner_id` moves. `agent_id` is deliberately left alone:
+    it records who created *this listing*, which stays true historically, and
+    reassigning it would require the buyer to already have an agent record.
+    When the new owner relists, that listing gets its own row with them as
+    the agent.
+
+    Leases are excluded — the landlord remains the owner for the duration,
+    matching the contract, which only reassigns ownership on a Purchase.
+    """
+    if record.action != TransactionActionEnum.purchase:
+        return
+    if record.status not in _SOLD_STATUSES:
+        return
+    if not record.buyer_wallet_id or not record.property_id:
+        return
+
+    result = await db.execute(
+        select(Property).where(
+            Property.blockchain_property_id == str(record.property_id)
+        )
+    )
+    # Intentionally not scalar_one_or_none(): blockchain_property_id has no
+    # unique constraint, so a property listed more than once (a resale) has
+    # several rows. All of them describe the same on-chain token, so all of
+    # them need the new owner.
+    properties = result.scalars().all()
+    if not properties:
+        return
+
+    for property_obj in properties:
+        if property_obj.blockchain_owner_id != record.buyer_wallet_id:
+            property_obj.blockchain_owner_id = record.buyer_wallet_id
+            db.add(property_obj)
+
+    await db.commit()
+    logger.info(
+        "Property %s ownership synced to %s after %s",
+        record.property_id,
+        record.buyer_wallet_id,
+        record.status.value,
+    )
 
 
 async def get_timeout_candidates(
@@ -509,10 +589,17 @@ async def verify_and_register_bid_tx(
             pass
 
     # 6. Fetch Property Seller Wallet Details
+    #
+    # Same caveat as the other blockchain_property_id lookups: the column has
+    # no unique constraint, and a resold property legitimately has one row per
+    # listing. scalar_one_or_none() would raise MultipleResultsFound, so take
+    # the most recent listing.
     res_prop = await db.execute(
-        select(DbProperty).where(DbProperty.blockchain_property_id == str(property_id_val))
+        select(DbProperty)
+        .where(DbProperty.blockchain_property_id == str(property_id_val))
+        .order_by(DbProperty.id.desc())
     )
-    property_obj = res_prop.scalar_one_or_none()
+    property_obj = res_prop.scalars().first()
 
     seller_wallet_id = None
     seller_user_id = None
