@@ -186,8 +186,16 @@ class Appointment(Base):
     agent_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("agent.id", ondelete="CASCADE"), nullable=False
     )
+    # ON DELETE CASCADE, matching every other FK pointing at property.id.
+    # Without it this defaulted to NO ACTION, so deleting a property that had
+    # any appointment raised an IntegrityError that nothing caught — a 500,
+    # which then surfaced in the browser as a CORS error (see main.py's
+    # middleware ordering). A viewing for a property that no longer exists has
+    # nothing to refer to, so it goes with it; delist_property refuses the
+    # delete outright while any appointment is still live, so cascading only
+    # ever removes already-finished ones.
     property_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("property.id"), nullable=False
+        Integer, ForeignKey("property.id", ondelete="CASCADE"), nullable=False
     )
     scheduled_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, unique=True

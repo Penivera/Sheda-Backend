@@ -1,5 +1,6 @@
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
+from sqlalchemy.exc import IntegrityError
 from app.models.property import Property, PropertyImage
 from app.schemas.user_schema import UserInDB, AgentFeed
 from app.models.property import (
@@ -249,9 +250,64 @@ async def delist_property(property_id: int, db: AsyncSession, current_user: User
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Property cannot be deleted because it is currently rented or sold",
         )
-    await db.delete(property)
+
+    # appointment.property_id cascades, so deleting here would silently remove
+    # any viewing booked against this property. Refuse while one is still live
+    # and say which — someone has that slot in their calendar, and the seller
+    # should cancel it deliberately rather than have it disappear.
+    live_appointments = await db.execute(
+        select(Appointment).where(
+            Appointment.property_id == property_id,
+            Appointment.status.in_(
+                [AppointmentStatEnum.pending, AppointmentStatEnum.confirmed]
+            ),
+        )
+    )
+    blocking = live_appointments.scalars().all()
+    if blocking:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    f"This property has {len(blocking)} active "
+                    f"appointment{'s' if len(blocking) != 1 else ''} and can't be "
+                    "deleted yet. Cancel them first, then try again."
+                ),
+                "blocking_appointments": [
+                    {
+                        "appointment_id": appt.id,
+                        "scheduled_at": appt.scheduled_at.isoformat()
+                        if appt.scheduled_at
+                        else None,
+                        "status": appt.status.value if appt.status else None,
+                    }
+                    for appt in blocking
+                ],
+            },
+        )
+
+    try:
+        await db.delete(property)
+        await db.commit()
+    except IntegrityError as exc:
+        # Something else still references this property. Previously this
+        # propagated as an unhandled 500; a 409 both tells the caller it's
+        # their state rather than our outage, and keeps CORS headers on the
+        # response (an unhandled 500 is generated outside that middleware).
+        await db.rollback()
+        logger.warning(
+            f"Property id:{property_id} could not be deleted, still referenced: {exc}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This property is still referenced by other records and can't be "
+                "deleted yet. Cancel any open appointments or transactions on it "
+                "first."
+            ),
+        ) from exc
+
     logger.info(f"Property with id:{property_id} deleted by agent id:{current_user.id}")
-    await db.commit()
     return DeleteProperty(message="Property Deleted")
 
 
