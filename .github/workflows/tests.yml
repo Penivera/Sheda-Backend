@@ -45,8 +45,13 @@ jobs:
         run: cp .env.example .env
 
       - name: Run tests
+        # `python -m pytest`, not `pytest`: tests/conftest.py does
+        # `from main import app`, and only the module form puts the working
+        # directory on sys.path. Bare pytest inserts the test file's own
+        # directory instead and dies with ModuleNotFoundError: main.
+        #
         # Scoped to the two real suites. tests/ also holds a locustfile (not
-        # collected) and a websocket test that expects a running server, so a
-        # bare `pytest` would fail for reasons unrelated to the change under
-        # review. Widen this when those are made self-contained.
-        run: pytest tests/unit tests/integration -q
+        # collected) and a websocket test that expects a running server, so
+        # widening this would fail for reasons unrelated to the change under
+        # review.
+        run: python -m pytest tests/unit tests/integration -q
