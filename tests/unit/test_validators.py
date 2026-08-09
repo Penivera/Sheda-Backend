@@ -11,32 +11,31 @@ from app.utils.validators import (
 class TestValidatorMixin:
     """Test base validator functions."""
 
-    def test_validate_ethereum_address_valid(self):
-        """Test valid Ethereum address."""
-        address = "0x742d35Cc6634C0532925a3b844Bc9e7595f73f2B"
-        result = ValidatorMixin.validate_ethereum_address(address)
-        assert result == address.lower()
-
-    def test_validate_ethereum_address_invalid_format(self):
-        """Test invalid Ethereum address format."""
-        with pytest.raises(ValueError, match="Invalid Ethereum address format"):
-            ValidatorMixin.validate_ethereum_address("not_an_address")
-
-    def test_validate_ethereum_address_too_short(self):
-        """Test Ethereum address too short."""
-        with pytest.raises(ValueError, match="Invalid Ethereum address format"):
-            ValidatorMixin.validate_ethereum_address("0x12345")
+    # These asserted Ethereum semantics — a `0x` + 64-hex hash, and a
+    # validate_ethereum_address method. This app is on NEAR:
+    # validate_blockchain_hash was rewritten to base58-decode and require 32
+    # bytes, and validate_ethereum_address was dropped. The tests were never
+    # updated, so they had been failing against a validator behaving exactly
+    # as intended.
 
     def test_validate_blockchain_hash_valid(self):
-        """Test valid blockchain hash."""
-        hash_val = "0x" + "a" * 64
-        result = ValidatorMixin.validate_blockchain_hash(hash_val)
-        assert result == hash_val.lower()
+        """A real NEAR tx hash: base58 that decodes to 32 bytes."""
+        hash_val = "GgKPGKXBHTVtaJfoTfHtvRWTdKZTBFmYPaAX6iZH1Uzn"
+        assert ValidatorMixin.validate_blockchain_hash(hash_val) == hash_val
 
-    def test_validate_blockchain_hash_invalid(self):
-        """Test invalid blockchain hash."""
-        with pytest.raises(ValueError, match="Invalid transaction hash format"):
-            ValidatorMixin.validate_blockchain_hash("0x12345")
+    def test_validate_blockchain_hash_rejects_ethereum_style(self):
+        """0x-prefixed hex is not a NEAR hash; '0' isn't in the base58 alphabet."""
+        with pytest.raises(ValueError):
+            ValidatorMixin.validate_blockchain_hash("0x" + "a" * 64)
+
+    def test_validate_blockchain_hash_rejects_wrong_length(self):
+        """Valid base58, but not 32 bytes once decoded."""
+        with pytest.raises(ValueError, match="32 bytes"):
+            ValidatorMixin.validate_blockchain_hash("abcdef")
+
+    def test_validate_blockchain_hash_rejects_non_string(self):
+        with pytest.raises(ValueError, match="must be a string"):
+            ValidatorMixin.validate_blockchain_hash(12345)
 
     def test_validate_bedroom_count_valid(self):
         """Test valid bedroom count."""
