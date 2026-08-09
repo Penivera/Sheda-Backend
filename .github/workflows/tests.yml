@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    services:
+      # core/configs.py builds an aioredis client at import time. It connects
+      # lazily, so most tests pass without a server — but anything touching
+      # the OTP or token-blacklist paths does need one, and a container is
+      # cheaper than discovering that per-test.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # pytest.ini sets minversion = 3.11
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Provide config
+        # Settings are loaded from a .env file and most fields are required,
+        # so the app cannot even be imported without one. The repo's own
+        # template carries valid dummy values for every required key.
+        run: cp .env.example .env
+
+      - name: Run tests
+        # Scoped to the two real suites. tests/ also holds a locustfile (not
+        # collected) and a websocket test that expects a running server, so a
+        # bare `pytest` would fail for reasons unrelated to the change under
+        # review. Widen this when those are made self-contained.
+        run: pytest tests/unit tests/integration -q
