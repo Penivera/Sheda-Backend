@@ -317,6 +317,7 @@ async def run_book_appointment(
     property_id: int,
     requested_time: datetime,
     db: AsyncSession,
+    bid_id: int | None = None,
 ):
     requested_weekday = requested_time.strftime("%A").upper()
     requested_time_only = requested_time.time()
@@ -348,6 +349,10 @@ async def run_book_appointment(
         client_id=client_id,
         agent_id=agent_id,
         property_id=property_id,
+        # Ties this viewing to the on-chain deal it belongs to, so a seller
+        # with several accepted bids knows which buyer is coming and both
+        # sides can see one timeline instead of two disconnected halves.
+        bid_id=bid_id,
         scheduled_at=scheduled_time,
     )
 
@@ -355,6 +360,91 @@ async def run_book_appointment(
     await db.commit()
     await db.refresh(appointment)
     return appointment
+
+
+async def record_appointment_outcome(
+    appointment_id: int,
+    agreed: bool,
+    current_user: UserInDB,
+    db: AsyncSession,
+):
+    """Record what a viewing produced, once it has actually happened.
+
+    `confirmed` only ever meant the slot was booked. Nothing recorded whether
+    the meeting took place or how it went, which is the one thing the seller
+    needs before releasing the agreement on chain — and the one thing the buyer
+    needs to know their locked escrow is still moving.
+    """
+    appointment = await db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
+        )
+
+    # Only the two people who were meant to be at the viewing can say what came
+    # of it. This drives whether a seller may release documents, so letting a
+    # third party set it would let them push a deal forward on someone's behalf.
+    if current_user.id not in (appointment.client_id, appointment.agent_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the client or agent on this appointment can record its outcome",
+        )
+
+    if appointment.status in (
+        AppointmentStatEnum.canceled,
+        AppointmentStatEnum.completed,
+        AppointmentStatEnum.not_agreed,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This appointment is already {appointment.status.value}",
+        )
+
+    appointment.status = (
+        AppointmentStatEnum.completed if agreed else AppointmentStatEnum.not_agreed
+    )
+    db.add(appointment)
+    await db.commit()
+    await db.refresh(appointment)
+    return appointment
+
+
+async def fetch_appointment_stage(bid_id: int, db: AsyncSession):
+    """Where a deal stands in the off-chain half of the flow.
+
+    The buyer's escrow is locked the moment their bid is accepted, but the next
+    on-chain step — the seller releasing the agreement NFT — waits on a meeting
+    that happens in the real world. Nothing joined the two, so a deal in
+    progress looked exactly like a deal that had stalled, and the buyer had no
+    way to tell whether their money was working or stuck.
+    """
+    result: Result = await db.execute(
+        select(Appointment)
+        .where(Appointment.bid_id == bid_id)
+        .order_by(Appointment.scheduled_at)
+    )
+    appointments = list(result.scalars().all())
+
+    if not appointments:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No appointment has been booked for this bid yet.",
+        )
+
+    return {
+        "bid_id": bid_id,
+        "property_id": appointments[0].property_id,
+        "appointments": appointments,
+        # The signal the seller is waiting on. A viewing that merely got
+        # "confirmed" was only ever a booked slot — it says nothing about
+        # whether the meeting happened or the parties agreed.
+        "ready_for_documents": any(
+            a.status == AppointmentStatEnum.completed for a in appointments
+        ),
+        "viewing_not_agreed": any(
+            a.status == AppointmentStatEnum.not_agreed for a in appointments
+        ),
+    }
 
 
 async def create_availability(

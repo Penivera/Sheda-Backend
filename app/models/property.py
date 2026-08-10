@@ -197,6 +197,19 @@ class Appointment(Base):
     property_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("property.id", ondelete="CASCADE"), nullable=False
     )
+    # The on-chain bid this viewing belongs to.
+    #
+    # Appointments lived only here and bids lived only on chain, with nothing
+    # joining them. A seller with two accepted bids on one property couldn't
+    # tell which buyer a viewing was for, and neither side could see where the
+    # deal actually stood — the buyer's escrow is locked from the moment their
+    # bid is accepted, but the next on-chain step (releasing the agreement) is
+    # gated on a real-world meeting the chain can't observe.
+    #
+    # Nullable: viewings booked before any bid exists are legitimate — people
+    # look at properties before committing money — and every appointment
+    # created before this column existed has no deal to point at.
+    bid_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     scheduled_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, unique=True
     )  # NOTE Date/Time of appointment
