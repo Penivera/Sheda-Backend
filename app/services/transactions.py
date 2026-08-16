@@ -493,6 +493,22 @@ async def verify_and_register_bid_tx(
         )
 
     query_result = query_res.get("result", {})
+
+    # A panic inside the contract comes back as `result.error`, not as a
+    # top-level `error`, so the check above never sees it. Without this the
+    # flow falls through to the "no bids" 404 below and an unreadable contract
+    # reads as "this user simply has no bids" — which is how a struct change
+    # deployed without migrate() stayed misdiagnosed for five days.
+    contract_error = query_result.get("error")
+    if contract_error:
+        logger.error(
+            f"NEAR contract view 'get_bids_by_bidder' failed on {receiver_id}: {contract_error}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Contract call failed: {contract_error}"
+        )
+
     if "result" not in query_result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

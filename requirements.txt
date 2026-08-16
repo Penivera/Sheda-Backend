@@ -123,7 +123,11 @@ slowapi
 sniffio
 SQLAlchemy
 starlette
-starlette-admin
+# 1.0.0 moved AdminConfig out of starlette_admin.auth, which core/admin/auth.py
+# imports at module scope — so main.py cannot be imported at all against it.
+# Unpinned, CI picked the new major up on release and the whole suite failed to
+# collect; a fresh deploy would have failed to boot the same way.
+starlette-admin<1.0.0
 structlog
 typer
 typing-inspection

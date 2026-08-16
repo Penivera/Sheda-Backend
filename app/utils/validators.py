@@ -112,8 +112,14 @@ class ValidatorMixin:
 
     @staticmethod
     def validate_blockchain_hash(value: str) -> str:
+        """Validate a NEAR transaction hash: base58 decoding to 32 bytes.
+
+        The docstring used to describe the Ethereum form (0x + 64 hex) that
+        this no longer accepts, which is what the stale tests were written
+        against.
+        """
         import base58
-        """Validate blockchain transaction hash (0x followed by 64 hex characters)."""
+
         if value is None:
             return value
 
@@ -126,7 +132,11 @@ class ValidatorMixin:
         # Standard NEAR hashes (SHA-256) are 32 bytes when decoded
         if len(decoded)==32:
             return value
-        raise ValueError
+        # A bare `raise ValueError` surfaced as a blank validation error with
+        # nothing for the caller to act on.
+        raise ValueError(
+            f"Transaction hash must decode to 32 bytes, got {len(decoded)}"
+        )
 
 
     @staticmethod
