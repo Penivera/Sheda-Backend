@@ -148,3 +148,7 @@ def create_app() -> FastAPI:
 app = create_app()
 
 # Health check endpoints are now in app/routers/health.py
+
+
+from workers import asgi
+Default = asgi.entrypoint(app)
