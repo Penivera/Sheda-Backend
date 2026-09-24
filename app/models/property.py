@@ -77,6 +77,30 @@ class Property(Base):
     listing_type: Mapped[ListingTypeEnum] = mapped_column(
         Enum(ListingTypeEnum), nullable=False, default=ListingTypeEnum.rent
     )
+
+    # ── Rental terms, mirroring the contract ────────────────────────────────
+    #
+    # Days, because that is the unit the contract stores and the unit the
+    # listing form offers. A month-based column cannot hold the short terms a
+    # seller can pick — a seven-day let would round to thirty — and having the
+    # two systems disagree about the length of a tenancy is worse than not
+    # recording it here at all.
+    #
+    # The chain remains authoritative. This is the copy the feed and search
+    # read so they do not have to make an RPC call per listing.
+    lease_duration_days: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    # Security deposit in the stablecoin's atomic units, held as a string for
+    # the same reason the chain reports u128 that way: the values exceed what a
+    # float can carry exactly, and a deposit that is off by a rounding error is
+    # a deposit somebody argues about. NULL or "0" means none is charged.
+    damage_deposit_required: Mapped[str | None] = mapped_column(
+        String(40),
+        nullable=True,
+    )
     status: Mapped[PropertyStatEnum] = mapped_column(
         Enum(PropertyStatEnum), default=PropertyStatEnum.available, nullable=False
     )
@@ -270,6 +294,19 @@ class Contract(Base):
     )  # For rentals
     # NOTE -  Change to True once the agent confirms payment
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # ── What this contract is on chain ──────────────────────────────────────
+    #
+    # Without these a contract row has no route back to the deal it stands for,
+    # and reconciling the two sides means guessing from amounts and dates. The
+    # app has always sent them; nothing here was listening.
+    #
+    # Indexed because "show me the row for this bid" is the question actually
+    # asked of them.
+    bid_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    lease_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    transaction_hash: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
     idempotency_key: Mapped[str | None] = mapped_column(
         String(255), nullable=True, unique=True, index=True
     )  # For idempotency - prevents duplicate contract creation
