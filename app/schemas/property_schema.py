@@ -43,6 +43,20 @@ class PropertyBase(BaseModel):
     is_negotiable: bool
     images: List[PropertyImage]
 
+    # ── Rental terms, mirroring the contract ────────────────────────────────
+    #
+    # Days, the unit the contract stores and the listing form offers. The app
+    # was already sending a term here and it was being dropped on the floor:
+    # Pydantic ignores fields a schema does not declare, so the length of every
+    # tenancy was lost between the form and the database without a word.
+    #
+    # Only meaningful when `listing_type` is rent.
+    lease_duration_days: Optional[int] = None
+
+    # Security deposit in atomic stablecoin units, as a string — the same shape
+    # the chain reports u128 in. `None` or "0" means none is charged.
+    damage_deposit_required: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -77,6 +91,8 @@ class PropertyUpdate(BaseModel):
     wifi: Optional[bool] = None
     is_negotiable: Optional[bool] = None
     images: Optional[List[PropertyImage]] = None
+    lease_duration_days: Optional[int] = None
+    damage_deposit_required: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -190,8 +206,25 @@ class ContractInDB(BaseModel):
 class ContractCreate(BaseModel):
     property_id: int
     amount: float
-    rental_period_months: Optional[int] = None  # Required only for rentals
+    # Days, matching the contract and the property's own term. This was months,
+    # which could not express a let shorter than one — and the chain and the
+    # backend then disagreed about when the same tenancy ended.
+    #
+    # Omit it to take the term from the property, which is the normal case: the
+    # length was agreed when the property was listed, not when the contract row
+    # was written.
+    lease_duration_days: Optional[int] = None
     is_payment_made: bool  # Ensure payment is confirmed before contract creation
+
+    # ── What this contract is on chain ──────────────────────────────────────
+    #
+    # The app has always sent these and they were always dropped, which left a
+    # contract row with no way back to the deal it represents: no bid, no
+    # lease, no transaction. Reconciling the two sides — or answering "which
+    # on-chain deal is this row?" — meant guessing from amounts and dates.
+    bid_id: Optional[int] = None
+    lease_id: Optional[int] = None
+    transaction_hash: Optional[str] = None
 
 
 class ContractResponse(BaseModel):

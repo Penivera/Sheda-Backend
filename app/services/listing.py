@@ -644,12 +644,28 @@ async def run_create_contract(
     # Determine contract type (rent or sale)
     contract_type = property.listing_type
 
-    # Set contract duration if renting
+    # Set contract duration if renting.
+    #
+    # Days, and taken from the property unless the caller overrides it — the
+    # term was agreed when the property was listed. This used to multiply a
+    # month count by 30, which meant a seven-day let was recorded as a
+    # thirty-day one and a year ran 360 days, neither matching what the chain
+    # had stored for the same tenancy.
+    #
+    # The chain is still authoritative for when a lease actually ends. This
+    # date is the backend's own record of the agreement.
     end_date = None
     if contract_type == ListingTypeEnum.rent:
-        end_date = datetime.now(timezone.utc) + timedelta(
-            days=30 * contract_data.rental_period_months  # type: ignore
-        )  # type: ignore
+        duration_days = contract_data.lease_duration_days or property.lease_duration_days
+        if not duration_days or duration_days <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This rental has no lease term. Set one on the listing, or "
+                    "pass lease_duration_days when creating the contract."
+                ),
+            )
+        end_date = datetime.now(timezone.utc) + timedelta(days=duration_days)
 
     # Create contract
     contract = Contract(
@@ -661,6 +677,12 @@ async def run_create_contract(
         start_date=datetime.now(timezone.utc),
         end_date=end_date,
         is_active=False,  # Activates when agent confirms
+        # Keep the link to what this contract is on chain. The app has always
+        # sent these; they were being dropped, leaving no way to tell which
+        # on-chain deal a row stood for.
+        bid_id=contract_data.bid_id,
+        lease_id=contract_data.lease_id,
+        transaction_hash=contract_data.transaction_hash,
     )
 
     # Update property status
