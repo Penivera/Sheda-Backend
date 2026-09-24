@@ -25,6 +25,11 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.claude/
+.playwright/
+.playwright-cli/
+.ruff_cache/
+.vscode/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
