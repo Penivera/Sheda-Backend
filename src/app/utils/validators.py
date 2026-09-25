@@ -111,9 +111,29 @@ class ValidatorMixin:
         return value.lower()
 
     @staticmethod
+    def validate_ethereum_address(value: str) -> str:
+        """Validate Ethereum address format (0x followed by 40 hex characters)."""
+        if value is None:
+            return value
+
+        if not isinstance(value, str):
+            raise ValueError("Ethereum address must be a string")
+
+        value = value.strip()
+
+        if not (value.startswith("0x") and len(value) == 42):
+            raise ValueError("Invalid Ethereum address format")
+
+        try:
+            int(value[2:], 16)
+        except ValueError:
+            raise ValueError("Invalid Ethereum address format")
+
+        return value.lower()
+
+    @staticmethod
     def validate_blockchain_hash(value: str) -> str:
-        import base58
-        """Validate blockchain transaction hash (0x followed by 64 hex characters)."""
+        """Validate blockchain transaction hash (0x followed by 64 hex characters, or NEAR base58 hash)."""
         if value is None:
             return value
 
@@ -122,11 +142,22 @@ class ValidatorMixin:
 
         value = value.strip()
 
-        decoded = base58.b58decode(value)
-        # Standard NEAR hashes (SHA-256) are 32 bytes when decoded
-        if len(decoded)==32:
-            return value
-        raise ValueError
+        if value.startswith("0x") and len(value) == 66:
+            try:
+                int(value[2:], 16)
+                return value.lower()
+            except ValueError:
+                pass
+
+        try:
+            import base58
+            decoded = base58.b58decode(value)
+            if len(decoded) == 32:
+                return value
+        except Exception:
+            pass
+
+        raise ValueError("Invalid transaction hash format")
 
 
     @staticmethod

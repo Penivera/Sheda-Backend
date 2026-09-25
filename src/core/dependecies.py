@@ -17,7 +17,17 @@ from fastapi.openapi.models import (
     SecuritySchemeType,
 )
 
-env = Environment(loader=FileSystemLoader("templates"))
+import os
+
+_templates_paths = [
+    "templates",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates"),
+    os.path.join(getattr(settings, "BASE_DIR", ""), "templates"),
+]
+_valid_template_paths = [p for p in _templates_paths if os.path.isdir(p)]
+env = Environment(
+    loader=FileSystemLoader(_valid_template_paths if _valid_template_paths else ["templates"])
+)
 
 
 class HTTPBearerWithScopes(HTTPBearer):

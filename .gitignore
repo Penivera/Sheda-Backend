@@ -30,7 +30,9 @@ MANIFEST
 .playwright-cli/
 .ruff_cache/
 .vscode/
-
+.venv-workers/
+.wrangler/
+python_modules/
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.

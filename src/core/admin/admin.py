@@ -1,3 +1,4 @@
+import os
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette_admin.contrib.sqla import Admin as StarletteAdmin, ModelView
@@ -7,16 +8,25 @@ from app.models import *
 from .resources import *
 from .auth import AdminAuthProvider
 
+static_dir = os.path.join(settings.BASE_DIR, "static")
+if not os.path.isdir(static_dir):
+    try:
+        os.makedirs(static_dir, exist_ok=True)
+    except OSError:
+        pass
+if not os.path.isdir(static_dir):
+    static_dir = None
+
 admin = StarletteAdmin(
     engine,
     title="Sheda Solutions Admin",
     base_url="/sheda-backend",
     route_name="sheda-backend",
-    statics_dir="static",
-    favicon_url="/static/sheda-solutions.ico",
+    statics_dir=static_dir,
+    favicon_url="/static/sheda-solutions.ico" if static_dir else None,
     debug=settings.DEBUG_MODE,
-    logo_url="/static/sheda-solutions.png",
-    login_logo_url="/static/sheda-solutions.png",
+    logo_url="/static/sheda-solutions.png" if static_dir else None,
+    login_logo_url="/static/sheda-solutions.png" if static_dir else None,
     auth_provider=AdminAuthProvider(),
     middlewares=[Middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)],
 )

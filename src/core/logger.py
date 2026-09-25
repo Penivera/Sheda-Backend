@@ -15,7 +15,7 @@ try:
     import structlog
 
     HAS_STRUCTLOG = True
-except ImportError:
+except (ImportError, RuntimeError):
     HAS_STRUCTLOG = False
 
 from core.configs import settings

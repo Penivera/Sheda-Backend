@@ -23,6 +23,8 @@ CACHE_TTL = {
 }
 
 
+import asyncio
+
 async def get_cached(
     redis_client: redis.Redis, key: str, default: Any = None
 ) -> Optional[Any]:
@@ -37,10 +39,10 @@ async def get_cached(
         Cached value or default
     """
     try:
-        value = await redis_client.get(key)
+        value = await asyncio.wait_for(redis_client.get(key), timeout=2.0)
         if value:
-            return json.loads(value)
             logger.debug(f"Cache hit", extra={"key": key})
+            return json.loads(value)
     except json.JSONDecodeError:
         logger.error(f"Cache value decode error", extra={"key": key})
         await delete_cached(redis_client, key)
@@ -67,7 +69,10 @@ async def set_cached(
         ttl = CACHE_TTL["property_feed"]
 
     try:
-        await redis_client.setex(key, int(ttl.total_seconds()), json.dumps(value))
+        await asyncio.wait_for(
+            redis_client.setex(key, int(ttl.total_seconds()), json.dumps(value)),
+            timeout=2.0,
+        )
         logger.debug(
             f"Cache set", extra={"key": key, "ttl_seconds": int(ttl.total_seconds())}
         )
@@ -88,7 +93,7 @@ async def delete_cached(redis_client: redis.Redis, key: str) -> bool:
         True if successful
     """
     try:
-        result = await redis_client.delete(key)
+        result = await asyncio.wait_for(redis_client.delete(key), timeout=2.0)
         if result > 0:
             logger.debug(f"Cache deleted", extra={"key": key})
         return True

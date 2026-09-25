@@ -107,7 +107,7 @@ async def get_health_service() -> HealthCheckService:
     """
     global _health_service
     if _health_service is None:
-        _health_service = HealthCheckService()
+        await initialize_health_checks()
     return _health_service
 
 
@@ -127,7 +127,8 @@ async def initialize_health_checks() -> None:
                 await session.execute(text("SELECT 1"))
             return True
         except Exception as e:
-            logger.error(f"Database check failed: {e}")
+            import traceback
+            logger.error(f"Database check failed: {e}\n{traceback.format_exc()}")
             return False
 
     # Redis check
