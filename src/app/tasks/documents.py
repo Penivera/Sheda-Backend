@@ -66,15 +66,15 @@ def cleanup_expired_kyc(self):
     Clean up expired KYC records and documents.
     Scheduled daily.
     """
-    try:
+    import asyncio
+
+    async def _run():
         from core.database import AsyncSessionLocal
         from app.models.user import BaseUser
         from app.utils.enums import KycStatusEnum
         from sqlalchemy import select, and_
 
-        session = AsyncSessionLocal()
-
-        try:
+        async with AsyncSessionLocal() as session:
             # Find expired pending KYC (older than 30 days)
             expiry_date = datetime.utcnow() - timedelta(days=30)
 
@@ -103,9 +103,8 @@ def cleanup_expired_kyc(self):
                 "expired_records": len(expired_kyc_users),
             }
 
-        finally:
-            await session.close()
-
+    try:
+        return asyncio.run(_run())
     except Exception as e:
         logger.error(f"Failed cleanup expired KYC: {str(e)}", task_id=self.request.id)
         raise

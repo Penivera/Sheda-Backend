@@ -95,6 +95,42 @@ async def test_get_property_by_id_use_cache_false_skips_cache_read(monkeypatch):
 
     result = await get_property_by_id(1, FakeDB(), use_cache=False)
 
-    assert result is property_obj
+    assert isinstance(result, PropertyShow)
+    assert result.id == 1
     assert fake_cache.get_calls == 0
     assert fake_cache.set_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_filtered_property_cache_hit(monkeypatch):
+    from app.schemas.property_schema import FilterParams, PropertyFeed
+    from app.services.listing import filtered_property
+
+    feed_payload = {
+        "data": [_property_payload()],
+        "next_coursor": 2,
+    }
+
+    class FeedCache:
+        async def get_property_feed(self, page=1, filters_hash=""):
+            return feed_payload
+
+        async def set_property_feed(self, *args, **kwargs):
+            return True
+
+    async def _fake_get_cache_service():
+        return FeedCache()
+
+    monkeypatch.setattr("app.services.cache.get_cache_service", _fake_get_cache_service)
+
+    class FailingDB:
+        async def execute(self, _query):
+            raise AssertionError("DB should not be reached when cache hits")
+
+    filter_query = FilterParams(cursor=1, limit=10)
+    result = await filtered_property(filter_query, FailingDB())
+
+    assert isinstance(result, PropertyFeed)
+    assert len(result.data) == 1
+    assert result.next_coursor == 2
+

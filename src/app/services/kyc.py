@@ -3,10 +3,23 @@ KYC (Know Your Customer) integration service.
 Integrates with external KYC providers (Persona, IDology, etc) for identity verification.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from enum import Enum
 from datetime import datetime
-import httpx
+
+if TYPE_CHECKING:
+    import httpx
+
+_httpx = None
+
+
+def _get_httpx():
+    global _httpx
+    if _httpx is None:
+        import httpx
+
+        _httpx = httpx
+    return _httpx
 
 from core.logger import get_logger
 from core.exceptions import ExternalServiceError, ValidationError
@@ -51,7 +64,7 @@ class PersonaKYCService:
 
     async def initialize(self) -> None:
         """Initialize HTTP client."""
-        self.client = httpx.AsyncClient(
+        self.client = _get_httpx().AsyncClient(
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
@@ -114,7 +127,7 @@ class PersonaKYCService:
             logger.info(f"KYC inquiry created", user_id=user_id, inquiry_id=inquiry_id)
             return data.get("data", {})
 
-        except httpx.HTTPError as e:
+        except Exception as e:
             logger.error(f"Persona API error: {str(e)}")
             raise ExternalServiceError("Persona", "Failed to create inquiry")
 
@@ -142,7 +155,7 @@ class PersonaKYCService:
 
             return response.json().get("data", {})
 
-        except httpx.HTTPError as e:
+        except Exception as e:
             logger.error(f"Persona API error: {str(e)}")
             raise ExternalServiceError("Persona", "Failed to get inquiry status")
 
@@ -174,7 +187,7 @@ class PersonaKYCService:
 
             return None
 
-        except httpx.HTTPError as e:
+        except Exception as e:
             logger.error(f"Persona API error: {str(e)}")
             raise ExternalServiceError("Persona", "Failed to get verification")
 

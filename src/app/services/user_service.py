@@ -30,11 +30,16 @@ class UserContext:
 
 async def get_token_payload(credentials: HTTPBearerDependency) -> TokenData:
     token = credentials.credentials
-    is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
-    if is_blacklisted:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
-        )
+    try:
+        is_blacklisted = await redis.get(settings.BLACKLIST_PREFIX.format(token))
+        if is_blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Token blacklist check bypassed due to redis error: {e}")
     try:
         payload: dict = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
