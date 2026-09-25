@@ -271,7 +271,7 @@ try:
     from core.logger import logger
 
     KYC_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError):
     KYC_AVAILABLE = False
 
 

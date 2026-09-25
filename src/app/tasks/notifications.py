@@ -36,17 +36,22 @@ def send_push_notification(
         notification_type: Type of notification
         data: Optional additional data
     """
-    try:
+    import asyncio
+
+    async def _run():
         from app.services.push_notifications import get_notification_service
 
         service = await get_notification_service()
-        result = await service.send_notification(
+        return await service.send_notification(
             user_id,
             title,
             body,
             notification_type,
             data,
         )
+
+    try:
+        result = asyncio.run(_run())
 
         logger.info(
             f"Push notification sent",
@@ -75,7 +80,9 @@ def send_appointment_reminders(self):
     Send appointment reminders to users.
     Scheduled daily.
     """
-    try:
+    import asyncio
+
+    async def _run():
         from app.services.push_notifications import (
             get_notification_service,
             NotificationTemplates,
@@ -87,9 +94,7 @@ def send_appointment_reminders(self):
 
         # Find appointments in next 2 hours
         service = await get_notification_service()
-        session = AsyncSessionLocal()
-
-        try:
+        async with AsyncSessionLocal() as session:
             now = datetime.utcnow()
             future = now + timedelta(hours=2)
 
@@ -114,7 +119,7 @@ def send_appointment_reminders(self):
                     time=appointment.scheduled_at.strftime("%H:%M"),
                 )
 
-                await send_push_notification.delay(
+                send_push_notification.delay(
                     user_id=appointment.client_id,
                     title=title,
                     body=body,
@@ -123,16 +128,16 @@ def send_appointment_reminders(self):
 
                 sent_count += 1
 
-            logger.info(
-                f"Appointment reminders sent",
-                task_id=self.request.id,
-                count=sent_count,
-            )
+            return sent_count
 
-            return {"status": "success", "reminders_sent": sent_count}
-
-        finally:
-            await session.close()
+    try:
+        sent_count = asyncio.run(_run())
+        logger.info(
+            f"Appointment reminders sent",
+            task_id=self.request.id,
+            count=sent_count,
+        )
+        return {"status": "success", "reminders_sent": sent_count}
 
     except Exception as e:
         logger.error(
@@ -161,7 +166,9 @@ def send_transaction_notification(
         transaction_type: Type of transaction notification
         transaction_data: Transaction-related data
     """
-    try:
+    import asyncio
+
+    async def _run():
         from app.services.push_notifications import (
             get_notification_service,
             NotificationTemplates,
@@ -192,13 +199,16 @@ def send_transaction_notification(
         else:
             return {"status": "skipped", "reason": "Unknown transaction type"}
 
-        result = await service.send_notification(
+        return await service.send_notification(
             user_id=user_id,
             title=title,
             body=body,
             notification_type=f"transaction_{transaction_type}",
             data=transaction_data,
         )
+
+    try:
+        result = asyncio.run(_run())
 
         logger.info(
             f"Transaction notification sent",
@@ -237,7 +247,9 @@ def send_message_notification(
         sender_name: Name of message sender
         message_preview: Optional message preview
     """
-    try:
+    import asyncio
+
+    async def _run():
         from app.services.push_notifications import (
             get_notification_service,
             NotificationTemplates,
@@ -246,13 +258,16 @@ def send_message_notification(
         service = await get_notification_service()
         title, body = NotificationTemplates.message_received(sender_name)
 
-        result = await service.send_notification(
+        return await service.send_notification(
             user_id=user_id,
             title=title,
             body=body,
             notification_type="message",
             data={"sender_name": sender_name, "preview": message_preview},
         )
+
+    try:
+        result = asyncio.run(_run())
 
         logger.info(
             f"Message notification sent",
@@ -291,17 +306,22 @@ def send_broadcast_notification(
         notification_type: Type of notification
         data: Optional additional data
     """
-    try:
+    import asyncio
+
+    async def _run():
         from app.services.push_notifications import get_notification_service
 
         service = await get_notification_service()
-        result = await service.send_to_multiple_users(
+        return await service.send_to_multiple_users(
             user_ids,
             title,
             body,
             notification_type,
             data,
         )
+
+    try:
+        result = asyncio.run(_run())
 
         logger.info(
             f"Broadcast notification sent",

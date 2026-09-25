@@ -7,7 +7,6 @@ from pydantic import AnyUrl
 import os
 import secrets
 import string
-from cloudinary import uploader
 
 
 def generate_random_password(length: int = 20) -> str:
@@ -29,19 +28,26 @@ def verify_password(password: Any, password_hash: str) -> bool:
 
 
 async def verify_otp(otp: str, email: str):
-    stored_otp = await redis.get(settings.OTP_PREFIX.format(email))
-    if stored_otp and stored_otp== otp:
-        logger.info("otp verified")
-        await redis.delete(settings.OTP_PREFIX.format(email))
-        logger.info(f"{email} OTP Data deleted from redis")
-        return True
-    logger.error("OTP not found")
-    return False
+    try:
+        stored_otp = await redis.get(settings.OTP_PREFIX.format(email))
+        if stored_otp and stored_otp == otp:
+            logger.info("otp verified")
+            await redis.delete(settings.OTP_PREFIX.format(email))
+            logger.info(f"{email} OTP Data deleted from redis")
+            return True
+        logger.error("OTP not found")
+        return False
+    except Exception as e:
+        logger.error(f"Error verifying OTP: {e}")
+        return False
 
 
 async def blacklist_token(token: str, time: int):
-    await redis.setex(settings.BLACKLIST_PREFIX.format(token), time, "blacklisted")
-    logger.info(f"Token added to blacklist for {time / 60} minutes")
+    try:
+        await redis.setex(settings.BLACKLIST_PREFIX.format(token), time, "blacklisted")
+        logger.info(f"Token added to blacklist for {time / 60} minutes")
+    except Exception as e:
+        logger.warning(f"Failed to blacklist token in redis: {e}")
 
 
 async def token_exp_time(token: str):
@@ -74,6 +80,8 @@ async def upload_media_file_to_cloudinary(base64:str):
     #convert base64 to bytes
     file_bytes = base64.encode('utf-8')
     try:
+        from cloudinary import uploader
+
         upload_result = uploader.upload(
             file_bytes,
             overwrite=True,

@@ -7,7 +7,8 @@ Integrates background task processing for payments and blockchain operations.
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 from core.logger import logger
-from core.dependecies import DBSession, get_current_user
+from core.dependecies import DBSession
+from app.services.user_service import get_current_user
 from app.models.user import BaseUser
 from pydantic import BaseModel
 
@@ -54,8 +55,8 @@ class SendEmailTaskRequest(BaseModel):
 @router.post("/process-payment")
 async def process_payment_async(
     request: ProcessPaymentRequest,
+    db: DBSession,
     current_user: BaseUser = Depends(get_current_user),
-    db: DBSession = Depends(),
 ):
     """
     Process payment confirmation asynchronously.
@@ -316,8 +317,7 @@ async def get_task_status(
         )
 
     try:
-        from celery.result import AsyncResult
-        from core.celery_config import app as celery_app
+        from core.celery_config import AsyncResult, app as celery_app
 
         result = AsyncResult(task_id, app=celery_app)
 

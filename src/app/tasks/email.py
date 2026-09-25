@@ -47,7 +47,7 @@ def send_otp_email(self, email: str, otp_code: str, fullname: Optional[str] = No
             otp_code=otp_code,
         )
 
-        await _send_email(
+        _send_email(
             recipient=email,
             subject=subject,
             html_content=html_content,
@@ -92,7 +92,7 @@ def send_welcome_email(self, email: str, fullname: str, account_type: str):
             account_type=account_type,
         )
 
-        await _send_email(
+        _send_email(
             recipient=email,
             subject=subject,
             html_content=html_content,
@@ -140,7 +140,7 @@ def send_password_reset_email(
             reset_link=reset_link,
         )
 
-        await _send_email(
+        _send_email(
             recipient=email,
             subject=subject,
             html_content=html_content,
@@ -199,7 +199,7 @@ def send_contract_notification_email(
             contract_amount=contract_amount,
         )
 
-        await _send_email(
+        _send_email(
             recipient=email,
             subject=subject,
             html_content=html_content,
@@ -243,7 +243,7 @@ def send_bulk_email(
 
         for email in recipients:
             try:
-                await _send_email(
+                _send_email(
                     recipient=email,
                     subject=subject,
                     html_content=html_content,
@@ -276,7 +276,7 @@ def send_bulk_email(
 # Helper functions
 
 
-async def _send_email(
+def _send_email(
     recipient: str,
     subject: str,
     html_content: str,

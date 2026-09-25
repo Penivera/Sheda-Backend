@@ -18,14 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from app.schemas.user_schema import BaseUserSchema
 from app.utils.utils import blacklist_token, token_exp_time, generate_random_password
 from app.utils.enums import AccountTypeEnum
-from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_auth_requests
 from app.schemas.auth_schema import SocialLoginRequest
-from app.schemas.user_schema import BaseUserSchema
-from app.utils.utils import blacklist_token, token_exp_time
-from app.utils.enums import AccountTypeEnum
-from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 from core.database import AsyncSessionLocal
 from pydantic import EmailStr
 from sqlalchemy import or_, and_
@@ -65,6 +58,9 @@ async def get_user(
     if account_type == AccountTypeEnum.agent:
         options.append(selectinload(Agent.listings))
         options.append(selectinload(Agent.availabilities))
+        options.append(selectinload(Agent.appointments))
+    elif account_type == AccountTypeEnum.client:
+        options.append(selectinload(Client.appointments))
     conditions = [
         BaseUser.email == identifier,
         BaseUser.username == identifier,
@@ -90,7 +86,6 @@ async def get_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     user.last_seen = datetime.now(timezone.utc)
-    await db.refresh(user)
     return user
 
 
@@ -145,6 +140,9 @@ async def process_social_login(
     payload: SocialLoginRequest, db: AsyncSession, background_tasks: BackgroundTasks
 ):
     try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_auth_requests
+
         # Verify Google token
         idinfo = id_token.verify_oauth2_token(
             payload.token, google_auth_requests.Request(), settings.GOOGLE_CLIENT_ID

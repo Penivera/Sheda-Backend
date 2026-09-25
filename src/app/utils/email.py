@@ -74,7 +74,7 @@ class EmailSender:
                     msg.attach(part)
 
             # Send email
-            smtp = smtplib.SMTP(self.smtp_host, port=self.port)
+            smtp = smtplib.SMTP(self.smtp_host, port=self.port, timeout=3.0)
             smtp.starttls()
             smtp.login(user=self.smtp_user, password=self.smtp_pass)
             smtp.sendmail(self.from_email, to_email, msg.as_string())

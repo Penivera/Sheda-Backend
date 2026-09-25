@@ -3,17 +3,35 @@ Rate limiting middleware using SlowAPI.
 Protects endpoints from abuse and excessive requests.
 """
 
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from fastapi import Request, Response
-from fastapi.responses import JSONResponse
-from core.logger import get_logger
+import threading
 import time
 from typing import Callable, Optional
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Cloudflare Workers / Pyodide single-threaded environment patch:
+# limits.storage.MemoryStorage starts a background threading.Timer for cleanup,
+# which fails with "RuntimeError: can't start new thread".
+_orig_timer_start = threading.Timer.start
+
+
+def _safe_timer_start(self):
+    try:
+        return _orig_timer_start(self)
+    except RuntimeError as e:
+        if "can't start new thread" in str(e):
+            self.is_alive = lambda: True
+            return
+        raise
+
+
+threading.Timer.start = _safe_timer_start
 
 # Initialize global limiter
 limiter = Limiter(key_func=get_remote_address)
