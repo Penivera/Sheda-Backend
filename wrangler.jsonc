@@ -12,7 +12,7 @@
 	],
 	"observability": {
 		"enabled": true
-	}
+	},
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -30,7 +30,51 @@
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
+	"vars": {
+		"ACCESS_TOKEN_EXPIRE_MINUTES": "30",
+		"ADMIN_PREFIX": "sheda-backend",
+		"ADMIN_PRIMARY_COLOR": "#c62828",
+		"ADMIN_ROUTE": "/sheda-backend",
+		"ADMIN_SECRET_KEY": "366471b72fa6926aac0f392b9bd261c492ca3899c76227ee889b2d6c72a3173c859b91dc34f3c5acaa9c67e36884e126f231585820da93da14bcef9d616525a7",
+		"ADMIN_SEED_EMAIL": "peni@peni.dev",
+		"ADMIN_SEED_ENABLED": "False",
+		"ADMIN_SEED_PASSWORD": "PeniAdmin@1234",
+		"ADMIN_SEED_USERNAME": "Penivera",
+		"ADMIN_SITE_FAVICON": "/static/sheda-solutions.png",
+		"ADMIN_SITE_HEADER_LOGO": "/static/sheda-solutions.png",
+		"ADMIN_SITE_NAME": "Sheda Admin",
+		"ADMIN_SITE_SIGN_IN_LOGO": "/static/sheda-solutions.png",
+		"ADMIN_USER_MODEL": "Admin",
+		"ADMIN_USER_MODEL_USERNAME_FIELD": "username",
+		"ALGORITHM": "HS256",
+		"ALLOW_HEADERS": "[\"Content-Type\", \"Authorization\", \"X-Requested-With\", \"Accept\", \"Origin\", \"Access-Control-Allow-Origin\", \"Access-Control-Allow-Methods\", \"Access-Control-Allow-Headers\"]",
+		"API_V_STR": "/api/v1",
+		"CLOUDINARY_API_KEY": "594242844577598",
+		"CLOUDINARY_API_SECRET": "faas3vdd8kFLxQ-j67ioUoqY6lI",
+		"CLOUDINARY_NAME": "doajfmh7f",
+		"CLOUDINARY_URL": "cloudinary://594242844577598:faas3vdd8kFLxQ-j67ioUoqY6lI@doajfmh7f",
+		"DB_URL": "postgresql+asyncpg://peni:couldbeHacked99@postgresql-peni.alwaysdata.net:5432/peni_sheda",
+		"DEBUG_MODE": "True",
+		"DEV_URL": "http://localhost:8000",
+		"GOOGLE_CLIENT_ID": "333938897540-tt7udprd6mf22erf0go6nfonkn7hqkit.apps.googleusercontent.com",
+		"METHODS": "[\"GET\", \"POST\", \"PUT\", \"DELETE\", \"OPTIONS\"]",
+		"ORIGINS": "[\"*\"]",
+		"PINATA_API_KEY": "1d37cdc4bb96f419b035",
+		"PINATA_API_SECRET": "60bff4b53f0ce3b3abc33af7c4372473cea5e342d8040599b87c2b0028040106",
+		"PINATA_GATEWAY_URL": "https://maroon-reasonable-squid-257.mypinata.cloud",
+		"PINATA_JWT": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI2YjhlYWIwZS1iZTAyLTQ0OTMtODgwNC02ZDVkOGM3ZDJkMDUiLCJlbWFpbCI6InBlbml2ZXJhNjU1QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiIxZDM3Y2RjNGJiOTZmNDE5YjAzNSIsInNjb3BlZEtleVNlY3JldCI6IjYwYmZmNGI1M2YwY2UzYjNhYmMzM2FmN2M0MzcyNDczY2VhNWUzNDJkODA0MDU5OWI4N2MyYjAwMjgwNDAxMDYiLCJleHAiOjE4MDQ1OTI2MTN9.TwFSPKhIZ3gVenpNsIlGs6BzxjdvVHd_tpfpxSn8VIY",
+		"PINATA_URL": "https://uploads.pinata.cloud/v3/files",
+		"PROD_URL": "https://sheda.peni.dev",
+		"REDIS_URL": "redis://default:GWNKSKGopazZA22A3BZDPxVw0aPXKsb8MItE9XLp6AE53TobT7es8xCzJF49KaNI@192.145.47.100:6379/0",
+		"REFRESH_TOKEN_EXPIRE_DAYS": "20",
+		"SECRET_KEY": "54454527191979f6df07274b04b344efd91fed4481a45de250cd3b83c21c095f05c03087e9eeb3aa4208652619bd7685303f032cfcada370eb0273b3fcf992e6753655cd811341dcfafe26af6d2ffffe0835e7fcdfb6e401ad3aba749f119c50147067d7a4d831523c2924ac537e9386359b70647bd5ad3151a32f6e33237e01",
+		"SIGN_UP_DESC": "Once accounts are created they are stored temporarily for 2 hours before deletion if email verification is not completed",
+		"SMTP_HOST": "smtp-relay.brevo.com",
+		"SMTP_PORT": "2525",
+		"SMTP_SEND_FROM_MAIL": "sheda-solutions@penivera.me",
+		"SMTP_USERNAME": "84a2f1005@smtp-brevo.com",
+		"VERIFICATION_CODE_EXP_MIN": "15"
+	}
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/

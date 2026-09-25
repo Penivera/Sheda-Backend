@@ -26,10 +26,7 @@ async def seed_superadmin() -> None:
     password = settings.ADMIN_SEED_PASSWORD
     print(len(password.encode("utf-8")))
 
-    explicitly_enabled = settings.ADMIN_SEED_ENABLED
-    implicitly_enabled = not explicitly_enabled and bool(username) and bool(password)
-
-    if not (explicitly_enabled or implicitly_enabled):
+    if not settings.ADMIN_SEED_ENABLED:
         logger.debug("Superadmin seeding disabled.")
         return
 
@@ -46,18 +43,20 @@ async def seed_superadmin() -> None:
             await session.execute(select(Admin).where(Admin.username == username))
         ).scalar_one_or_none()
         if existing:
-            logger.info(
-                f"Superadmin '{username}' already exists. Updating credentials..."
-            )
-            if not existing.is_superuser:
-                existing.is_superuser = True
-            # Keep credentials in sync with env in dev.
-            existing.password = hash_password(password)
-            if not existing.email:
-                existing.email = email
-            if not existing.near_account_id:
-                existing.near_account_id = f"{username.lower()}.testnet"
-            await session.commit()
+            if not existing.password:
+                logger.info(
+                    f"Superadmin '{username}' exists without password. Setting credentials..."
+                )
+                if not existing.is_superuser:
+                    existing.is_superuser = True
+                existing.password = hash_password(password)
+                if not existing.email:
+                    existing.email = email
+                if not existing.near_account_id:
+                    existing.near_account_id = f"{username.lower()}.testnet"
+                await session.commit()
+            else:
+                logger.info(f"Superadmin '{username}' already exists.")
             return
 
         admin = Admin(

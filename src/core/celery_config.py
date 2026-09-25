@@ -1,115 +1,142 @@
 """
-Celery configuration for background task processing.
-Enables asynchronous execution of long-running operations like email/SMS and notifications.
+Cloudflare Workers native task runner and background job processing.
+Provides an async-compatible task decorator and dispatcher with Celery-like interface (.delay, .apply_async)
+that works natively with Cloudflare Workers' wait_until and standard asyncio.
 """
 
-from celery import Celery
-from celery.schedules import crontab
-from kombu import Exchange, Queue
-import os
+import asyncio
+import inspect
+from typing import Any, Callable, Dict, Optional
 
-from core.configs import settings
 from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize Celery app
-app = Celery(
-    "sheda",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-)
-
-# Configuration
-app.conf.update(
-    # Task settings
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    # Result backend settings
-    result_expires=3600,  # 1 hour
-    result_backend_transport_options={
-        "master_name": "sheda",
-        "retry_on_timeout": True,
-    },
-    # Task execution settings
-    task_acks_late=True,
-    task_reject_on_worker_lost=True,
-    task_track_started=True,
-    # Worker settings
-    worker_prefetch_multiplier=4,
-    worker_max_tasks_per_child=1000,
-    # Broker settings
-    broker_connection_retry_on_startup=True,
-    broker_connection_retry=True,
-    broker_pool_limit=10,
-    # Routing
-    task_routes={
-        "app.tasks.email.*": {"queue": "email"},
-        "app.tasks.notifications.*": {"queue": "notifications"},
-        "app.tasks.transactions.*": {"queue": "transactions"},
-        "app.tasks.documents.*": {"queue": "documents"},
-    },
-)
-
-# Define queues with priority
-default_exchange = Exchange("default", type="direct")
-email_exchange = Exchange("email", type="direct")
-notification_exchange = Exchange("notifications", type="direct")
-transaction_exchange = Exchange("transactions", type="direct")
-document_exchange = Exchange("documents", type="direct")
-
-app.conf.task_queues = (
-    Queue("default", exchange=default_exchange, routing_key="default", priority=5),
-    Queue("email", exchange=email_exchange, routing_key="email", priority=10),
-    Queue(
-        "notifications",
-        exchange=notification_exchange,
-        routing_key="notifications",
-        priority=8,
-    ),
-    Queue(
-        "transactions",
-        exchange=transaction_exchange,
-        routing_key="transactions",
-        priority=15,
-    ),
-    Queue("documents", exchange=document_exchange, routing_key="documents", priority=5),
-)
-
-# Periodic tasks (beat schedule)
-app.conf.beat_schedule = {
-    "check-payment-timeouts": {
-        "task": "app.tasks.transactions.check_payment_timeouts",
-        "schedule": crontab(minute="*/5"),  # Every 5 minutes
-    },
-    "send-appointment-reminders": {
-        "task": "app.tasks.notifications.send_appointment_reminders",
-        "schedule": crontab(hour="*/2"),  # Every 2 hours
-    },
-    "cleanup-expired-kyc": {
-        "task": "app.tasks.documents.cleanup_expired_kyc",
-        "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
-    },
-    "sync-blockchain-events": {
-        "task": "app.tasks.transactions.sync_blockchain_events",
-        "schedule": crontab(minute="*/10"),  # Every 10 minutes
-    },
-    "expire-contracts": {
-        "task": "app.tasks.transactions.expire_contracts",
-        "schedule": crontab(hour=0, minute=0),  # Daily at midnight
-    },
-}
+# In-memory registry for task execution tracking
+_TASK_RESULTS: Dict[str, Dict[str, Any]] = {}
+_TASK_COUNTER = 0
 
 
-# Task auto-discovery (discovers tasks in app/tasks/*.py)
-app.autodiscover_tasks(["app.tasks"])
+def _generate_task_id() -> str:
+    global _TASK_COUNTER
+    _TASK_COUNTER += 1
+    return f"task_{_TASK_COUNTER}"
 
 
-# Signal handlers
-@app.task(bind=True)
-def debug_task(self):
-    """Debug task for testing Celery."""
-    logger.info(f"Request: {self.request!r}")
+class AsyncResult:
+    """Task execution result matching Celery's AsyncResult interface."""
+
+    def __init__(self, task_id: str, app: Any = None):
+        self.id = task_id
+        self.app = app
+
+    @property
+    def info(self) -> Dict[str, Any]:
+        return _TASK_RESULTS.get(self.id, {"status": "PENDING", "result": None})
+
+    @property
+    def state(self) -> str:
+        return self.info.get("status", "PENDING")
+
+    @property
+    def result(self) -> Any:
+        return self.info.get("result")
+
+    def ready(self) -> bool:
+        return self.state in ("SUCCESS", "FAILURE")
+
+    def successful(self) -> bool:
+        return self.state == "SUCCESS"
+
+    def failed(self) -> bool:
+        return self.state == "FAILURE"
+
+
+class WorkerTask:
+    """Wrapper around a callable to provide .delay() and .apply_async()."""
+
+    def __init__(self, func: Callable, bind: bool = False, name: Optional[str] = None):
+        self.func = func
+        self.bind = bind
+        self.name = name or func.__name__
+
+    def __call__(self, *args, **kwargs):
+        if self.bind:
+            return self.func(self, *args, **kwargs)
+        return self.func(*args, **kwargs)
+
+    def delay(self, *args, **kwargs) -> AsyncResult:
+        return self.apply_async(args=args, kwargs=kwargs)
+
+    def apply_async(
+        self,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
+        **options,
+    ) -> AsyncResult:
+        task_id = _generate_task_id()
+        args = args or ()
+        kwargs = kwargs or {}
+
+        _TASK_RESULTS[task_id] = {"status": "PENDING", "result": None}
+
+        async def _run():
+            try:
+                _TASK_RESULTS[task_id]["status"] = "STARTED"
+                if self.bind:
+                    call_args = (self, *args)
+                else:
+                    call_args = args
+
+                if inspect.iscoroutinefunction(self.func):
+                    res = await self.func(*call_args, **kwargs)
+                else:
+                    res = self.func(*call_args, **kwargs)
+
+                _TASK_RESULTS[task_id] = {"status": "SUCCESS", "result": res}
+            except Exception as exc:
+                logger.exception(f"Error executing task {self.name} ({task_id}): {exc}")
+                _TASK_RESULTS[task_id] = {"status": "FAILURE", "result": str(exc)}
+
+        # Try to schedule via Cloudflare Workers wait_until or asyncio loop
+        try:
+            from workers import wait_until
+            from pyodide.ffi import create_proxy
+
+            fut = asyncio.ensure_future(_run())
+            wait_until(create_proxy(fut))
+        except Exception:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_run())
+            except RuntimeError:
+                try:
+                    asyncio.run(_run())
+                except Exception:
+                    pass
+
+        return AsyncResult(task_id)
+
+
+class WorkerTaskApp:
+    """Application object providing @app.task() decorator matching Celery API."""
+
+    def __init__(self):
+        self.conf = {}
+
+    def task(self, *args, **kwargs):
+        bind = kwargs.get("bind", False)
+        name = kwargs.get("name")
+
+        def decorator(func: Callable) -> WorkerTask:
+            return WorkerTask(func, bind=bind, name=name)
+
+        if args and callable(args[0]):
+            return decorator(args[0])
+        return decorator
+
+    def autodiscover_tasks(self, *args, **kwargs):
+        pass
+
+
+app = WorkerTaskApp()

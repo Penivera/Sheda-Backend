@@ -1,9 +1,9 @@
 """Health check endpoints."""
 
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from app.services.health import (
     get_health_service,
-    initialize_health_checks,
     HealthStatus,
 )
 from core.logger import get_logger
@@ -11,13 +11,6 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-@router.on_event("startup")
-async def startup_health_checks():
-    """Initialize health checks on application startup."""
-    await initialize_health_checks()
-    logger.info("Health check endpoints ready")
 
 
 @router.get("/health", tags=["health"])
@@ -110,6 +103,3 @@ async def health_stats():
         logger.error(f"Failed to get health stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to get stats")
 
-
-# Import datetime for stats endpoint
-from datetime import datetime

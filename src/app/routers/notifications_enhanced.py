@@ -34,7 +34,8 @@ Get notification delivery status.
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional, List
 from core.logger import logger
-from core.dependecies import DBSession, get_current_user
+from core.dependecies import DBSession
+from app.services.user_service import get_current_user
 from app.models.user import BaseUser
 
 try:

@@ -17,6 +17,7 @@ from app.schemas.property_schema import (
     PropertyShow,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from app.schemas.property_schema import (
     FilterParams,
@@ -96,7 +97,11 @@ async def get_property_by_id(
         except Exception as e:
             logger.warning(f"Cache error, falling back to database: {e}")
 
-    query = select(Property).where(Property.id == property_id)
+    query = (
+        select(Property)
+        .options(selectinload(Property.images))
+        .where(Property.id == property_id)
+    )
     result: Result = await db.execute(query)
     property = result.scalar_one_or_none()
     if not property:
@@ -105,20 +110,18 @@ async def get_property_by_id(
             detail=f"Property with id: {property_id} not found",
         )
 
-    # Cache the full response payload (not a hand-picked subset of columns) so
-    # a cache hit can be served without touching the DB or the ORM object again.
+    property_show = PropertyShow.model_validate(property, from_attributes=True)
     try:
         from app.services.cache import get_cache_service
 
         cache = await get_cache_service()
-        property_show = PropertyShow.model_validate(property, from_attributes=True)
         await cache.set_property_detail(
             property_id, property_show.model_dump(mode="json")
         )
     except Exception as e:
         logger.warning(f"Failed to cache property: {e}")
 
-    return property
+    return property_show
 
 
 async def update_listing(
@@ -190,6 +193,7 @@ async def filtered_property(filter_query: FilterParams, db: AsyncSession):
 
     query = (
         select(Property)
+        .options(selectinload(Property.images))
         .where(Property.id >= filter_query.cursor)
         .limit(filter_query.limit)
     )
@@ -204,10 +208,7 @@ async def filtered_property(filter_query: FilterParams, db: AsyncSession):
         await cache.set_property_feed(
             page=1,
             filters_hash=filters_hash,
-            feed={
-                "data": [p.__dict__ for p in properties],
-                "next_coursor": next_cursor,
-            },
+            feed=feed.model_dump(mode="json"),
         )
     except Exception as e:
         logger.warning(f"Failed to cache property feed: {e}")
