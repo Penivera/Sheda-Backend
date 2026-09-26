@@ -114,6 +114,10 @@ class AppointmentSchema(BaseModel):
     agent_id: int
     property_id: int
     requested_time: datetime
+    # The on-chain bid this viewing is for. Optional because people view
+    # properties before committing money; supplied once a bid is accepted, so
+    # a seller with several accepted bids can tell which buyer is coming.
+    bid_id: int | None = None
 
 
 class AvailabilityShow(AgentAvailabilitySchema):
@@ -130,10 +134,38 @@ class AppointmentShow(BaseModel):
     client_id: int
     agent_id: int
     property_id: int
+    bid_id: int | None = None
     scheduled_at: datetime
     status: AppointmentStatEnum
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AppointmentStageShow(BaseModel):
+    """Where a deal stands in the off-chain half of the flow.
+
+    The buyer's escrow is locked from the moment their bid is accepted, but the
+    next on-chain step — the seller releasing the agreement NFT — depends on a
+    meeting that happens in the real world. Neither side could see that half,
+    so a deal in progress looked identical to a deal that had stalled.
+
+    Returned alongside the on-chain bid status so a client can show one
+    continuous timeline instead of two disconnected halves.
+    """
+
+    bid_id: int
+    property_id: int
+    appointments: list[AppointmentShow]
+    # True once a viewing for this bid reached `completed` — the signal the
+    # seller is waiting on before releasing the agreement.
+    ready_for_documents: bool
+    # True if the parties met and did not agree. The buyer can cancel and
+    # reclaim their escrow; surfaced so the app can say so plainly rather than
+    # leaving them to guess.
+    viewing_not_agreed: bool
 
     class Config:
         from_attributes = True
