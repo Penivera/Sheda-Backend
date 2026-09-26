@@ -25,6 +25,7 @@ from typing import List
 from app.schemas.property_schema import (
     AppointmentSchema,
     AppointmentShow,
+    AppointmentStageShow,
     AvailabilityShow,
     AgentAvailabilitySchema,
     ContractResponse,
@@ -42,6 +43,9 @@ from app.services.listing import (
     proccess_approve_payment,
     run_create_contract,
     confirm_agent_appointment,
+    fetch_appointment_stage,
+    record_appointment_outcome,
+    delete_agent_availability,
 )
 from typing import Optional
 
@@ -112,7 +116,43 @@ async def book_appointment(
         property_id=payload.property_id,
         requested_time=payload.requested_time,
         db=db,
+        bid_id=payload.bid_id,
     )
+
+
+# NOTE Off-chain half of a deal's timeline.
+#
+# Appointments live here and bids live on chain, and nothing joined them. The
+# buyer's escrow is locked from the moment their bid is accepted, but the next
+# on-chain step — the seller releasing the agreement — waits on a real-world
+# meeting, so a deal in progress was indistinguishable from one that had
+# stalled. Clients pair this with the on-chain bid status to show both parties
+# one continuous timeline.
+@router.get(
+    "/appointment-stage/{bid_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=AppointmentStageShow,
+)
+async def appointment_stage(bid_id: int, current_user: ActiveUser, db: DBSession):
+    return await fetch_appointment_stage(bid_id, db)
+
+
+# NOTE Record what a viewing produced.
+#
+# `confirmed` only ever meant the slot was booked — nothing said whether the
+# meeting happened or how it went. `agreed=true` is what tells the seller they
+# can release the agreement on chain; `agreed=false` tells the buyer plainly
+# that the deal is off so they can cancel and reclaim their escrow, which they
+# can do at any time while the bid is merely accepted.
+@router.patch(
+    "/appointment-outcome/{appointment_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=AppointmentShow,
+)
+async def appointment_outcome(
+    appointment_id: int, agreed: bool, current_user: ActiveUser, db: DBSession
+):
+    return await record_appointment_outcome(appointment_id, agreed, current_user, db)
 
 
 # NOTE Cancel Appointment
@@ -222,6 +262,20 @@ async def update_schedule(
     db: DBSession,
 ):
     return await update_agent_availabilty(update_data, db, schedule_id, current_user)  # type: ignore # type: ignore
+
+
+# NOTE delete availability
+@router.delete(
+    "/delete-schedule/{schedule_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=dict,
+)
+async def delete_schedule(
+    schedule_id: int,
+    current_user: ActiveAgent,
+    db: DBSession,
+):
+    return await delete_agent_availability(schedule_id, current_user, db)  # type: ignore
 
 
 @router.post(
