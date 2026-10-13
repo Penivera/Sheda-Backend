@@ -194,6 +194,13 @@ def load_router_for_path(app, path: str) -> None:
         app.include_router(auth.router, prefix=settings.API_V_STR)
         _loaded_routers.add("auth")
 
+    # NOTE: /users must be checked BEFORE /user to avoid prefix collision
+    elif path.startswith(f"{api}/users") and "wallets" not in _loaded_routers:
+        from app.routers import wallets
+
+        app.include_router(wallets.router, prefix=settings.API_V_STR)
+        _loaded_routers.add("wallets")
+
     elif path.startswith(f"{api}/user") and "user" not in _loaded_routers:
         from app.routers import user
 
@@ -211,6 +218,15 @@ def load_router_for_path(app, path: str) -> None:
 
         app.include_router(chat.router, prefix=settings.API_V_STR)
         _loaded_routers.add("chat")
+        # Websocket routes also live under /chat/ prefix
+        if "websocket" not in _loaded_routers:
+            try:
+                from app.routers import websocket
+
+                app.include_router(websocket.router, prefix=settings.API_V_STR)
+            except Exception:
+                pass
+            _loaded_routers.add("websocket")
 
     elif path.startswith(f"{api}/media") and "media" not in _loaded_routers:
         from app.routers import media
@@ -261,12 +277,15 @@ def load_router_for_path(app, path: str) -> None:
         except Exception:
             pass
         _loaded_routers.add("notifications")
+        # Websocket routes also live under /notifications/ prefix
+        if "websocket" not in _loaded_routers:
+            try:
+                from app.routers import websocket
 
-    elif path.startswith(f"{api}/users") and "wallets" not in _loaded_routers:
-        from app.routers import wallets
-
-        app.include_router(wallets.router, prefix=settings.API_V_STR)
-        _loaded_routers.add("wallets")
+                app.include_router(websocket.router, prefix=settings.API_V_STR)
+            except Exception:
+                pass
+            _loaded_routers.add("websocket")
 
     elif (
         path.startswith(f"{api}/minted-properties")
@@ -306,7 +325,7 @@ def load_router_for_path(app, path: str) -> None:
             pass
         _loaded_routers.add("admin")
 
-    elif path in ("/docs", "/redoc"):
+    elif path in ("/docs", "/redoc", "/sheda-docs"):
         load_all_routers(app)
 
 
