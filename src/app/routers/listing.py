@@ -307,7 +307,13 @@ async def index_property_for_search(
             furnished=property_obj.furnished,
             is_negotiable=property_obj.is_negotiable,
             agent_id=property_obj.agent_id,
-            amenities=property_obj.amenities or [],
+            # Property has no `amenities` column. Reading it directly raised
+            # AttributeError, which the bare `except` below turned into a 500
+            # — so this endpoint could not succeed for any property, and the
+            # failure read as "indexing is broken" rather than "that field
+            # does not exist". Tolerated here so the rest of the document
+            # still indexes; remove once the column exists.
+            amenities=getattr(property_obj, "amenities", None) or [],
         )
 
         logger.info(
