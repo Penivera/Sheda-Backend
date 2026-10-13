@@ -139,6 +139,9 @@ async def process_signup(
 async def process_social_login(
     payload: SocialLoginRequest, db: AsyncSession, background_tasks: BackgroundTasks
 ):
+    if payload.provider == "x":
+        return await process_x_login(payload, db, background_tasks)
+
     try:
         from google.oauth2 import id_token
         from google.auth.transport import requests as google_auth_requests
@@ -202,6 +205,135 @@ async def process_social_login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid social token"
         )
+
+
+async def process_x_login(
+    payload: SocialLoginRequest, db: AsyncSession, background_tasks: BackgroundTasks
+):
+    """Exchange X (Twitter) OAuth 2.0 authorization code for user info and create/login."""
+    import httpx
+
+    if not payload.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authorization code is required for X login",
+        )
+
+    if not settings.X_CLIENT_ID or not settings.X_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="X login is not configured",
+        )
+
+    # Step 1: Exchange authorization code for access token
+    token_url = "https://api.x.com/2/oauth2/token"
+    token_data = {
+        "grant_type": "authorization_code",
+        "code": payload.code,
+        "redirect_uri": settings.X_REDIRECT_URI,
+        "client_id": settings.X_CLIENT_ID,
+    }
+    if payload.code_verifier:
+        token_data["code_verifier"] = payload.code_verifier
+
+    try:
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                token_url,
+                data=token_data,
+                auth=(settings.X_CLIENT_ID, settings.X_CLIENT_SECRET),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            if token_response.status_code != 200:
+                logger.error(f"X token exchange failed: {token_response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Failed to exchange X authorization code",
+                )
+
+            token_json = token_response.json()
+            x_access_token = token_json.get("access_token")
+            if not x_access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="No access token returned from X",
+                )
+
+            # Step 2: Fetch user profile from X
+            user_response = await client.get(
+                "https://api.x.com/2/users/me",
+                params={"user.fields": "id,name,username,profile_image_url"},
+                headers={"Authorization": f"Bearer {x_access_token}"},
+            )
+
+            if user_response.status_code != 200:
+                logger.error(f"X user fetch failed: {user_response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Failed to fetch user info from X",
+                )
+
+            x_user = user_response.json().get("data", {})
+
+    except httpx.HTTPError as e:
+        logger.error(f"X OAuth HTTP error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to communicate with X",
+        )
+
+    x_username = x_user.get("username", "")
+    x_name = x_user.get("name", "")
+    x_profile_image = x_user.get("profile_image_url", "")
+    x_id = x_user.get("id", "")
+
+    # X doesn't provide email via OAuth 2.0 user lookup —
+    # use a synthetic email based on X user ID as a stable identifier.
+    email = f"{x_id}@x.sheda.app"
+
+    # Step 3: Find or create user
+    try:
+        user = await get_user(email, db, AccountTypeEnum.client)
+        if not user.verified:
+            user.verified = True
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+    except HTTPException:
+        # User doesn't exist, create account
+        import uuid
+
+        username = "".join(e for e in (x_username or x_name) if e.isalnum())[:30]
+        if not username:
+            username = f"xuser{x_id[:8]}"
+
+        user_data = UserCreate(
+            username=username,
+            email=email,
+            password=generate_random_password(),
+            near_account_id=f"{username.lower()}-{uuid.uuid4().hex[:6]}.testnet",
+        )
+
+        user = await create_account(user_data, db)
+        user.verified = True
+
+        if x_profile_image:
+            user.avatar_url = x_profile_image
+        if x_name:
+            user.fullname = x_name
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    jwt_token_data = TokenData(sub=user.id, scopes=[AccountTypeEnum.client.value])
+    access_token = await create_access_token(data=jwt_token_data)
+
+    return SignUpShow(
+        token=Token(access_token=access_token),
+        user_data=UserShow.model_validate(user),
+    )
 
 
 async def process_logout(token: str):

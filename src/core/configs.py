@@ -160,6 +160,16 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: Optional[str] = Field(
         default=None, description="Google OAuth Client ID"
     )
+    X_CLIENT_ID: Optional[str] = Field(
+        default=None, description="X (Twitter) OAuth 2.0 Client ID"
+    )
+    X_CLIENT_SECRET: Optional[str] = Field(
+        default=None, description="X (Twitter) OAuth 2.0 Client Secret"
+    )
+    X_REDIRECT_URI: str = Field(
+        default="http://localhost:8081/auth/x/callback",
+        description="X (Twitter) OAuth 2.0 redirect URI",
+    )
 
     # Elasticsearch (Full-text Search)
     ELASTICSEARCH_URL: Optional[str] = Field(
