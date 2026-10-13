@@ -58,7 +58,5 @@ class ForgotPasswordResetRequest(BaseModel):
 
 
 class SocialLoginRequest(BaseModel):
-    token: Optional[str] = None
-    code: Optional[str] = None
-    code_verifier: Optional[str] = None
-    provider: Literal["google", "x"] = "google"
+    token: str
+    provider: Literal["google"] = "google"
