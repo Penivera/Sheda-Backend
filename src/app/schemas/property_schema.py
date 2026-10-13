@@ -96,6 +96,29 @@ class PropertyFeed(BaseModel):
     next_coursor: int | None
 
 
+class PropertySearchResponse(BaseModel):
+    """What a search returns.
+
+    Whole properties, not index fragments. The Elasticsearch path returned
+    ids, titles and prices with no images or description, which no client
+    could draw a result card from — so a search that "worked" still showed
+    nothing. `data` matches the key the property feed already uses.
+    """
+
+    data: List[PropertyShow]
+    total: int
+    limit: int
+    offset: int
+    # Which path answered: "index" when Elasticsearch ranked the page,
+    # "database" when it was unreachable or had nothing indexed. Surfaced so
+    # an empty page can be told apart from a missing index without digging
+    # through logs.
+    source: str
+
+    class Config:
+        from_attributes = True
+
+
 class DeleteProperty(BaseModel):
     message: str
 
