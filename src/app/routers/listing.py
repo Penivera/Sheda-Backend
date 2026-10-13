@@ -7,6 +7,7 @@ from app.schemas.property_schema import (
     FilterParams,
     PropertyFeed,
     DeleteProperty,
+    PropertySearchResponse,
 )
 from app.services.listing import (
     create_property_listing,
@@ -16,6 +17,10 @@ from app.services.listing import (
     filtered_property,
     get_agent_by_id,
     delist_property,
+    # Aliased: the route handler below is also called `search_properties`,
+    # and an unaliased import would be shadowed by it — the handler would
+    # call itself instead of the service.
+    search_properties as search_properties_in_db,
 )
 from app.services.user_service import ActiveAgent, ActiveUser
 from app.schemas.user_schema import AgentFeed
@@ -139,7 +144,7 @@ except ImportError:
 
 @router.get(
     "/search",
-    response_model=dict,
+    response_model=PropertySearchResponse,
     status_code=status.HTTP_200_OK,
     description="Full-text search for properties with advanced filtering",
 )
@@ -175,6 +180,7 @@ async def search_properties(
     ] = "MOST_RELEVANT",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    db: DBSession = None,
 ):
     """
     Search properties using Elasticsearch full-text search.
@@ -208,16 +214,47 @@ async def search_properties(
     }
     ```
     """
-    if not SEARCH_AVAILABLE:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Search service not available",
-        )
+    # The database answers the query. Elasticsearch, when it is reachable and
+    # has anything indexed, only decides the order.
+    #
+    # It used to do both, which meant search failed three ways at once: the
+    # index is never populated, one deployment cannot reach Elasticsearch at
+    # all, and the hits it returns are too thin to draw — ids and titles, no
+    # images. The endpoint answered an empty list and looked perfectly
+    # healthy. Now a missing index costs ordering quality, not results.
+    ranked_ids = None
+    if SEARCH_AVAILABLE and query and query.strip() and query.strip() != "*":
+        try:
+            service = await get_search_service()
+            hits = await service.search_properties(
+                query=query,
+                location=location,
+                property_type=property_type,
+                listing_type=listing_type,
+                min_price=min_price,
+                max_price=max_price,
+                min_bedroom=min_bedroom,
+                max_bedroom=max_bedroom,
+                min_bathroom=min_bathroom,
+                max_bathroom=max_bathroom,
+                furnished=furnished,
+                amenities=amenities,
+                sort=sort,
+                limit=limit,
+                offset=offset,
+            )
+            # The service reports its own failures in an `error` key rather
+            # than raising, so an unreachable Elasticsearch arrives here as a
+            # successful call with no hits.
+            if not hits.get("error"):
+                ranked_ids = [h["id"] for h in hits.get("results", []) if h.get("id")]
+        except Exception as e:
+            # Ranking is an optimisation. Losing it must not lose the search.
+            logger.warning(f"Search ranking unavailable, falling back to database: {e}")
 
     try:
-        service = await get_search_service()
-
-        results = await service.search_properties(
+        results = await search_properties_in_db(
+            db,
             query=query,
             location=location,
             property_type=property_type,
@@ -233,14 +270,16 @@ async def search_properties(
             sort=sort,
             limit=limit,
             offset=offset,
+            ranked_ids=ranked_ids,
         )
 
         logger.info(
-            f"Property search executed",
+            "Property search executed",
             extra={
                 "query": query,
                 "total_results": results.get("total", 0),
-                "returned": len(results.get("results", [])),
+                "returned": len(results.get("data", [])),
+                "source": results.get("source"),
             },
         )
 
