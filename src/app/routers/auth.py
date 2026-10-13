@@ -52,7 +52,7 @@ async def signup_user(
     "/social-login",
     response_model=SignUpShow,
     status_code=status.HTTP_200_OK,
-    description="Authenticates a user via a social identity provider (e.g. Google, X/Twitter) and returns an access token.",
+    description="Authenticates a user via a social identity provider (e.g. Google) and returns an access token.",
 )
 async def social_login(
     payload: SocialLoginRequest, db: DBSession, background_tasks: BackgroundTasks
