@@ -1,5 +1,6 @@
 from sqlalchemy.future import select
 from sqlalchemy.engine import Result
+from sqlalchemy import or_, func
 from app.models.property import Property, PropertyImage
 from app.schemas.user_schema import UserInDB, AgentFeed
 from app.models.property import (
@@ -658,3 +659,149 @@ async def delete_agent_availability(
     await db.delete(schedule)
     await db.commit()
     return {"detail": "Availability deleted successfully"}
+
+
+# ── Searching for a property ────────────────────────────────────────────────
+#
+# Search ran only through Elasticsearch, and that made it fail in three
+# different ways at once: the index is never populated (nothing calls the
+# indexing endpoint), one deployment cannot reach Elasticsearch at all, and
+# the results it returns are too thin to render — ids and titles, no images.
+# The endpoint answered `{"results": [], "total": 0}` and looked healthy.
+#
+# So the database answers the query, and Elasticsearch — when it is reachable
+# and has anything indexed — only decides the order. That way search works on
+# a deployment with no index and no Elasticsearch, which is the state both
+# deployments are actually in, and it returns whole properties that a client
+# can draw.
+
+# `amenities` arrives as a list of names, but the model stores each one as its
+# own boolean column. Anything not named here is ignored rather than refused:
+# an unknown amenity should narrow nothing, not empty the page.
+_AMENITY_COLUMNS = {
+    "wifi": "wifi",
+    "air_condition": "air_condition",
+    "air_conditioning": "air_condition",
+    "ac": "air_condition",
+    "pop_ceiling": "pop_ceiling",
+    "floor_tiles": "floor_tiles",
+    "running_water": "running_water",
+    "water": "running_water",
+    "furniture": "furniture",
+    "furnished": "furnished",
+    "prepaid_meter": "prepaid_meter",
+}
+
+_SORT_COLUMNS = {
+    "price_asc": (Property.price, "asc"),
+    "price_desc": (Property.price, "desc"),
+    "created_desc": (Property.created_at, "desc"),
+    "created_asc": (Property.created_at, "asc"),
+}
+
+
+def _apply_search_filters(stmt, *, query=None, location=None, property_type=None,
+                          listing_type=None, min_price=None, max_price=None,
+                          min_bedroom=None, max_bedroom=None, min_bathroom=None,
+                          max_bathroom=None, furnished=None, amenities=None):
+    """Narrow a Property select by everything the search endpoint accepts."""
+    if query and query.strip() and query.strip() != "*":
+        like = f"%{query.strip()}%"
+        # Three fields, because people search for a place as readily as for a
+        # kind of property.
+        stmt = stmt.where(
+            or_(
+                Property.title.ilike(like),
+                Property.description.ilike(like),
+                Property.location.ilike(like),
+            )
+        )
+
+    if location:
+        stmt = stmt.where(Property.location.ilike(f"%{location}%"))
+    if property_type:
+        stmt = stmt.where(Property.property_type == property_type)
+    if listing_type:
+        stmt = stmt.where(Property.listing_type == listing_type)
+    if min_price is not None:
+        stmt = stmt.where(Property.price >= min_price)
+    if max_price is not None:
+        stmt = stmt.where(Property.price <= max_price)
+    if min_bedroom is not None:
+        stmt = stmt.where(Property.bedroom >= min_bedroom)
+    if max_bedroom is not None:
+        stmt = stmt.where(Property.bedroom <= max_bedroom)
+    if min_bathroom is not None:
+        stmt = stmt.where(Property.bathroom >= min_bathroom)
+    if max_bathroom is not None:
+        stmt = stmt.where(Property.bathroom <= max_bathroom)
+    if furnished is not None:
+        stmt = stmt.where(Property.furnished == furnished)
+
+    for name in amenities or []:
+        column = _AMENITY_COLUMNS.get(str(name).strip().lower().replace(" ", "_"))
+        if column:
+            stmt = stmt.where(getattr(Property, column).is_(True))
+
+    # A delisted property is not a search result. `is_active` is nullable on
+    # rows that predate the column, and `!= False` keeps those visible rather
+    # than silently dropping every older listing.
+    stmt = stmt.where(Property.is_active.isnot(False))
+    return stmt
+
+
+async def search_properties(
+    db: AsyncSession,
+    *,
+    query=None, location=None, property_type=None, listing_type=None,
+    min_price=None, max_price=None, min_bedroom=None, max_bedroom=None,
+    min_bathroom=None, max_bathroom=None, furnished=None, amenities=None,
+    sort="relevance", limit=20, offset=0, ranked_ids=None,
+):
+    """Find properties, returning whole rows rather than index fragments.
+
+    `ranked_ids` is Elasticsearch's opinion about ordering, when it had one.
+    The rows still come from the database, so a half-built index degrades the
+    ordering instead of emptying the page.
+    """
+    filters = dict(
+        query=query, location=location, property_type=property_type,
+        listing_type=listing_type, min_price=min_price, max_price=max_price,
+        min_bedroom=min_bedroom, max_bedroom=max_bedroom,
+        min_bathroom=min_bathroom, max_bathroom=max_bathroom,
+        furnished=furnished, amenities=amenities,
+    )
+
+    count_stmt = _apply_search_filters(select(func.count(Property.id)), **filters)
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    stmt = _apply_search_filters(
+        select(Property).options(selectinload(Property.images)), **filters
+    )
+
+    if ranked_ids:
+        # Keep Elasticsearch's order, and only for the page it ranked.
+        stmt = stmt.where(Property.id.in_(ranked_ids))
+        rows = list((await db.execute(stmt)).scalars().all())
+        position = {pid: i for i, pid in enumerate(ranked_ids)}
+        rows.sort(key=lambda p: position.get(p.id, len(position)))
+    else:
+        column, direction = _SORT_COLUMNS.get(sort, (None, None))
+        if column is None:
+            # Relevance without an index is not meaningful, so newest first —
+            # the useful default for a marketplace, and a stable order rather
+            # than whatever the database happens to return.
+            column, direction = Property.created_at, "desc"
+        stmt = stmt.order_by(column.desc() if direction == "desc" else column.asc())
+        stmt = stmt.limit(limit).offset(offset)
+        rows = list((await db.execute(stmt)).scalars().all())
+
+    return {
+        "data": rows,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        # Which path answered, so an empty page can be told apart from a
+        # missing index without reading the logs.
+        "source": "index" if ranked_ids else "database",
+    }
