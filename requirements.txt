@@ -121,7 +121,9 @@ simple-websocket
 six
 slowapi
 sniffio
-SQLAlchemy
+# 2.1.0 removed ScalarObjectAttributeImpl from sqlalchemy.orm.attributes,
+# which starlette-admin (<1.0.0) imports in starlette_admin.contrib.sqla.helpers.
+SQLAlchemy<2.1.0
 starlette
 # 1.0.0 moved AdminConfig out of starlette_admin.auth, which core/admin/auth.py
 # imports at module scope — so main.py cannot be imported at all against it.
