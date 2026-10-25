@@ -149,6 +149,13 @@ except ImportError:
     description="Full-text search for properties with advanced filtering",
 )
 async def search_properties(
+    # No default, and first — the way every other handler in this file takes
+    # its session. Written as `db: DBSession = None` it had to come last, and
+    # whether FastAPI then still resolves the dependency or simply hands over
+    # the default depends on the version: on one deployment the session
+    # arrived, on the other `None` did, and every search answered 500. This
+    # file pins no FastAPI version, so that difference is not stable.
+    db: DBSession,
     query: str = Query(..., min_length=1, description="Search query"),
     min_price: Annotated[int, Query(description="Minimum price")] = None,
     max_price: Annotated[int, Query(description="Maximum price")] = None,
@@ -180,7 +187,6 @@ async def search_properties(
     ] = "MOST_RELEVANT",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-    db: DBSession = None,
 ):
     """
     Search properties using Elasticsearch full-text search.
