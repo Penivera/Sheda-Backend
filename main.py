@@ -17,6 +17,7 @@ from app.routers import (
     wallets,
     minted_property,
     indexer,
+    collections,
 )
 
 try:
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(wallets.router, prefix=settings.API_V_STR)
     app.include_router(minted_property.router, prefix=settings.API_V_STR)
     app.include_router(indexer.router, prefix=settings.API_V_STR)
+    app.include_router(collections.router, prefix=settings.API_V_STR)
 
     # NOTE - Add rate limiting middleware
     app.add_middleware(RateLimitMiddleware)
