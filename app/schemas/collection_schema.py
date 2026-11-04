@@ -216,6 +216,12 @@ class ProjectSummaryOut(_Base):
     builder: Optional[CollectionProfileOut] = None
     manager: Optional[CollectionProfileOut] = None
 
+    #: Share of the raise whose phases have passed, in basis points.
+    #: Derived from the phase states rather than stored, so it cannot drift
+    #: away from the schedule it is a summary of. It is a proportion, not an
+    #: amount: how much money that is remains the chain's to say.
+    phases_released_bps: int = 0
+
 
 class ProjectDetailOut(ProjectSummaryOut):
     description: Optional[str] = None

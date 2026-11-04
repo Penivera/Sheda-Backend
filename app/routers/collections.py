@@ -92,11 +92,16 @@ def _cover(project: CollectionProject) -> Optional[str]:
     return images[0].image_url if images else None
 
 
+def _released_bps(project: CollectionProject) -> int:
+    return sum(p.tranche_bps for p in project.phases if p.state == PhaseStateEnum.released)
+
+
 def _summary_out(project: CollectionProject) -> ProjectSummaryOut:
     out = ProjectSummaryOut.model_validate(project)
     out.cover_image_url = _cover(project)
     out.builder = _profile_out(project.builder) if project.builder else None
     out.manager = _profile_out(project.manager) if project.manager else None
+    out.phases_released_bps = _released_bps(project)
     return out
 
 
@@ -108,6 +113,7 @@ def _detail_out(project: CollectionProject, units: List[CollectionUnit]) -> Proj
     out.image_urls = [i.image_url for i in sorted(project.images, key=lambda i: i.position)]
     out.documents = [DocumentOut.model_validate(d) for d in project.documents]
     out.unit_list = [UnitOut.model_validate(u) for u in units]
+    out.phases_released_bps = _released_bps(project)
     return out
 
 
