@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Query, HTTPException
+from fastapi import APIRouter, status, Query, HTTPException, BackgroundTasks
 from core.dependecies import DBSession
 from app.schemas.property_schema import (
     PropertyBase,
@@ -35,6 +35,42 @@ router = APIRouter(
 )
 
 
+async def index_property_in_background(property_obj) -> None:
+    """Add a property to the search index, quietly.
+
+    Runs after the response has gone out, and swallows everything. One of the
+    two deployments cannot reach Elasticsearch at all, so this fails routinely
+    and by design — a listing must not get slower, or fail, because a ranking
+    index could not be updated. Search itself reads the database and does not
+    depend on this.
+    """
+    if not SEARCH_AVAILABLE:
+        return
+    try:
+        service = await get_search_service()
+        await service.index_property(
+            property_id=property_obj.id,
+            title=property_obj.title,
+            description=property_obj.description,
+            location=property_obj.location,
+            price=float(property_obj.price or 0),
+            property_type=property_obj.property_type,
+            listing_type=property_obj.listing_type,
+            status=property_obj.status,
+            bedroom=property_obj.bedroom,
+            bathroom=property_obj.bathroom,
+            furnished=property_obj.furnished,
+            is_negotiable=property_obj.is_negotiable,
+            agent_id=property_obj.agent_id,
+            # No amenities column on Property; the index accepts the field, so
+            # it is passed empty rather than omitted.
+            amenities=getattr(property_obj, "amenities", None) or [],
+        )
+        logger.info("Property indexed", extra={"property_id": property_obj.id})
+    except Exception as e:
+        logger.warning(f"Could not index property for search: {e}")
+
+
 @router.post(
     "/list-property",
     response_model=PropertyShow,
@@ -42,9 +78,14 @@ router = APIRouter(
     status_code=status.HTTP_201_CREATED,
 )
 async def list_property(
-    current_user: ActiveAgent, payload: PropertyBase, db: DBSession
+    current_user: ActiveAgent,
+    payload: PropertyBase,
+    db: DBSession,
+    background_tasks: BackgroundTasks,
 ):
-    return await create_property_listing(current_user, payload, db)
+    new_property = await create_property_listing(current_user, payload, db)
+    background_tasks.add_task(index_property_in_background, new_property)
+    return new_property
 
 
 @router.get("/me", response_model=List[PropertyShow], status_code=status.HTTP_200_OK)
@@ -70,8 +111,13 @@ async def edit_property_listing(
     update_data: PropertyUpdate,
     current_user: ActiveAgent,
     db: DBSession,
+    background_tasks: BackgroundTasks,
 ):
-    return await update_listing(property_id, current_user, update_data, db)
+    updated = await update_listing(property_id, current_user, update_data, db)
+    # Re-indexed on edit as well, or the index keeps describing the listing as
+    # it was first written — a stale title ranks for the wrong searches.
+    background_tasks.add_task(index_property_in_background, updated)
+    return updated
 
 
 list_desc = """  
@@ -149,6 +195,13 @@ except ImportError:
     description="Full-text search for properties with advanced filtering",
 )
 async def search_properties(
+    # No default, and first — the way every other handler in this file takes
+    # its session. Written as `db: DBSession = None` it had to come last, and
+    # whether FastAPI then still resolves the dependency or simply hands over
+    # the default depends on the version: on one deployment the session
+    # arrived, on the other `None` did, and every search answered 500. This
+    # file pins no FastAPI version, so that difference is not stable.
+    db: DBSession,
     query: str = Query(..., min_length=1, description="Search query"),
     min_price: Annotated[int, Query(description="Minimum price")] = None,
     max_price: Annotated[int, Query(description="Maximum price")] = None,
@@ -180,7 +233,6 @@ async def search_properties(
     ] = "MOST_RELEVANT",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-    db: DBSession = None,
 ):
     """
     Search properties using Elasticsearch full-text search.
