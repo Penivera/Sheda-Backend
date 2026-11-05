@@ -12,6 +12,16 @@ from .property import (
 )
 from .chat import ChatMessage
 from .rating import Rating
+from .collection import (
+    CollectionProfile,
+    CollectionChainRecord,
+    CollectionProject,
+    CollectionProjectImage,
+    CollectionDocument,
+    CollectionPhase,
+    CollectionPhaseUpdate,
+    CollectionUnit,
+)
 from .transaction import (
     WalletMapping,
     DeviceToken,
@@ -43,4 +53,12 @@ __all__ = [
     "TransactionNotification",
     "TransactionAuditLog",
     "MintedPropertyDraft",
+    "CollectionProfile",
+    "CollectionChainRecord",
+    "CollectionProject",
+    "CollectionProjectImage",
+    "CollectionDocument",
+    "CollectionPhase",
+    "CollectionPhaseUpdate",
+    "CollectionUnit",
 ]
